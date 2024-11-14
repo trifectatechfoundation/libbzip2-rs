@@ -10,14 +10,6 @@ use crate::decompress::{self, decompress};
 use crate::libbzip2_rs_sys_version;
 use crate::BZ_MAX_UNUSED;
 
-// FIXME remove this
-extern "C" {
-    #[cfg_attr(target_os = "macos", link_name = "__stdinp")]
-    static mut stdin: *mut FILE;
-    #[cfg_attr(target_os = "macos", link_name = "__stdoutp")]
-    static mut stdout: *mut FILE;
-}
-
 pub(crate) const BZ_MAX_ALPHA_SIZE: usize = 258;
 pub(crate) const BZ_MAX_CODE_LEN: usize = 23;
 
@@ -2657,20 +2649,23 @@ unsafe fn bzopen_or_bzdopen(path: Option<&CStr>, open_mode: OpenMode, mode: &CSt
         },
     };
 
-    let mode2 = mode.as_ptr().cast_mut().cast::<c_char>();
+    let mode_cstr = mode.as_ptr().cast_mut().cast::<c_char>();
 
-    let default_file = match operation {
-        Operation::Reading => stdin,
-        Operation::Writing => stdout,
+    let opt_fp = match open_mode {
+        OpenMode::Pointer => match path {
+            None => None,
+            Some(path) if path.is_empty() => None,
+            Some(path) => Some(fopen(path.as_ptr(), mode_cstr)),
+        },
+        OpenMode::FileDescriptor(fd) => Some(fdopen(fd, mode_cstr)),
     };
 
-    let fp = match open_mode {
-        OpenMode::Pointer => match path {
-            None => default_file,
-            Some(path) if path.is_empty() => default_file,
-            Some(path) => fopen(path.as_ptr(), mode2),
+    let fp = match opt_fp {
+        Some(fp) => fp,
+        None => match operation {
+            Operation::Reading => fdopen(0, mode_cstr),
+            Operation::Writing => fdopen(1, mode_cstr),
         },
-        OpenMode::FileDescriptor(fd) => fdopen(fd, mode2),
     };
 
     if fp.is_null() {
@@ -2696,7 +2691,7 @@ unsafe fn bzopen_or_bzdopen(path: Option<&CStr>, open_mode: OpenMode, mode: &CSt
     };
 
     if bzfp.is_null() {
-        if fp != stdin && fp != stdout {
+        if let Some(fp) = opt_fp {
             fclose(fp);
         }
         return ptr::null_mut();
@@ -2889,7 +2884,8 @@ pub unsafe extern "C" fn BZ2_bzclose(b: *mut BZFILE) {
         }
     }
 
-    if fp != stdin && fp != stdout {
+    // don't close stdin or stdout
+    if libc::fileno(fp) > 1 {
         fclose(fp);
     }
 }
