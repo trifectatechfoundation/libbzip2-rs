@@ -349,7 +349,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
         features:
           - ''
-    runs-on: ubuntu-latest
+    # At the time of writing, 'latest' referred to ubuntu-22
+    # for libabigail we really need ubuntu-24, which just started getting rolled out
+    # In the future, this can likely be changed to `ubuntu-latest` again.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -366,6 +369,17 @@ jobs:
         run: |
           curl -L "$LINK/cargo-c-x86_64-unknown-linux-musl.tar.gz" |
           tar xz -C $HOME/.cargo/bin
+      - name: Install bzip2
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libbz2-dev abigail-tools
+          version: 1.0
+      - name: Store API
+        run: |
+          libbz2_path=$(ldconfig -p | grep "x86_64-linux-gnu/libbz2.so" | head -n 1 | awk '{print $4}')
+          libbz2_filename=$(basename "$libbz2_path")
+          abidw $libbz2_path > /tmp/$libbz2_filename.abi
+          echo "LIBBZ2_FILENAME=$libbz2_filename" >> $GITHUB_ENV
       - name: build with and test the result of cargo-c
         working-directory: libbz2-rs-sys-cdylib
         run: |
@@ -379,3 +393,6 @@ jobs:
           export LD_LIBRARY_PATH=/tmp/cargo-cbuild-libbzip2-rs/usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
           ./bzpipe < Cargo.toml | ./bzpipe -d > out.txt
           cmp -s Cargo.toml out.txt
+          # verify the API surface
+          abidw /tmp/cargo-cbuild-libbzip2-rs/usr/local/lib/x86_64-linux-gnu/libbz2_rs.so > /tmp/liblibz_rs_sys.so.abi
+          abidiff --no-unreferenced-symbols --ignore-soname /tmp/$LIBBZ2_FILENAME.abi /tmp/liblibz_rs_sys.so.abi
