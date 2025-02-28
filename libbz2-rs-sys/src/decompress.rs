@@ -496,7 +496,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedCombinedCRC = s.storedCombinedCRC << 8 | uc as u32;
+                s.storedCombinedCRC = (s.storedCombinedCRC << 8) | uc as u32;
                 current_block = BZ_X_CCRC_2;
             }
             BZ_X_BCRC_1 => {
@@ -504,7 +504,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedBlockCRC = s.storedBlockCRC << 8 | uc as u32;
+                s.storedBlockCRC = (s.storedBlockCRC << 8) | uc as u32;
                 current_block = BZ_X_BCRC_2;
             }
             _ => {}
@@ -515,7 +515,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedCombinedCRC = s.storedCombinedCRC << 8 | uc as u32;
+                s.storedCombinedCRC = (s.storedCombinedCRC << 8) | uc as u32;
                 current_block = BZ_X_CCRC_3;
             }
             BZ_X_BCRC_2 => {
@@ -523,7 +523,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedBlockCRC = s.storedBlockCRC << 8 | uc as u32;
+                s.storedBlockCRC = (s.storedBlockCRC << 8) | uc as u32;
                 current_block = BZ_X_BCRC_3;
             }
             _ => {}
@@ -534,7 +534,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedCombinedCRC = s.storedCombinedCRC << 8 | uc as u32;
+                s.storedCombinedCRC = (s.storedCombinedCRC << 8) | uc as u32;
                 current_block = BZ_X_CCRC_4;
             }
             BZ_X_BCRC_3 => {
@@ -542,7 +542,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedBlockCRC = s.storedBlockCRC << 8 | uc as u32;
+                s.storedBlockCRC = (s.storedBlockCRC << 8) | uc as u32;
                 current_block = BZ_X_BCRC_4;
             }
             _ => {}
@@ -553,7 +553,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedBlockCRC = s.storedBlockCRC << 8 | uc as u32;
+                s.storedBlockCRC = (s.storedBlockCRC << 8) | uc as u32;
                 current_block = BZ_X_RANDBIT;
             }
             BZ_X_CCRC_4 => {
@@ -561,7 +561,7 @@ pub(crate) fn decompress(
 
                 uc = GET_BYTE!(strm, s);
 
-                s.storedCombinedCRC = s.storedCombinedCRC << 8 | uc as u32;
+                s.storedCombinedCRC = (s.storedCombinedCRC << 8) | uc as u32;
                 s.state = State::BZ_X_IDLE;
                 error!(BZ_STREAM_END);
             }
@@ -580,7 +580,7 @@ pub(crate) fn decompress(
 
             uc = GET_BYTE!(strm, s);
 
-            s.origPtr = s.origPtr << 8 | i32::from(uc);
+            s.origPtr = (s.origPtr << 8) | i32::from(uc);
             current_block = BZ_X_ORIGPTR_2;
         }
         if current_block == BZ_X_ORIGPTR_2 {
@@ -588,7 +588,7 @@ pub(crate) fn decompress(
 
             uc = GET_BYTE!(strm, s);
 
-            s.origPtr = s.origPtr << 8 | i32::from(uc);
+            s.origPtr = (s.origPtr << 8) | i32::from(uc);
             current_block = BZ_X_ORIGPTR_3;
         }
         if current_block == BZ_X_ORIGPTR_3 {
@@ -596,7 +596,7 @@ pub(crate) fn decompress(
 
             uc = GET_BYTE!(strm, s);
 
-            s.origPtr = s.origPtr << 8 | i32::from(uc);
+            s.origPtr = (s.origPtr << 8) | i32::from(uc);
             if !(0..10 + 100000 * i32::from(s.blockSize100k)).contains(&s.origPtr) {
                 error!(BZ_DATA_ERROR);
             }
@@ -724,7 +724,7 @@ pub(crate) fn decompress(
 
                     zj = GET_BIT!(strm, s);
 
-                    zvec = zvec << 1 | zj as i32;
+                    zvec = (zvec << 1) | zj as i32;
                     current_block = Block56;
                 }
                 BZ_X_MTF_3 => {
@@ -739,7 +739,7 @@ pub(crate) fn decompress(
 
                     zj = GET_BIT!(strm, s);
 
-                    zvec = zvec << 1 | zj as i32;
+                    zvec = (zvec << 1) | zj as i32;
                     current_block = Block52;
                 }
                 BZ_X_MTF_5 => {
@@ -754,7 +754,7 @@ pub(crate) fn decompress(
 
                     zj = GET_BIT!(strm, s);
 
-                    zvec = zvec << 1 | zj as i32;
+                    zvec = (zvec << 1) | zj as i32;
                     current_block = Block24;
                 }
             }
@@ -892,24 +892,28 @@ pub(crate) fn decompress(
                                     // Compute T^(-1) by pointer reversal on T
                                     i = s.origPtr;
                                     j = (ll16[i as usize] as u32
-                                        | (ll4[(i >> 1) as usize] as u32 >> (i << 2 & 0x4) & 0xf)
-                                            << 16) as i32;
+                                        | (((ll4[(i >> 1) as usize] as u32 >> ((i << 2) & 0b100))
+                                            & 0xf)
+                                            << 16)) as i32;
                                     loop {
                                         let tmp_0: i32 = (ll16[j as usize] as u32
-                                            | (ll4[(j >> 1) as usize] as u32 >> (j << 2 & 0x4)
+                                            | (((ll4[(j >> 1) as usize] as u32
+                                                >> ((j << 2) & 0b100))
                                                 & 0xf)
-                                                << 16)
+                                                << 16))
                                             as i32;
                                         ll16[j as usize] = (i & 0xffff) as u16;
                                         if j & 0x1 == 0 {
-                                            ll4[(j >> 1) as usize] =
-                                                (ll4[(j >> 1) as usize] as c_int & 0xf0 | i >> 16)
-                                                    as u8;
+                                            ll4[(j >> 1) as usize] = (ll4[(j >> 1) as usize]
+                                                as c_int
+                                                & 0xf0
+                                                | (i >> 16))
+                                                as u8;
                                         } else {
                                             ll4[(j >> 1) as usize] =
                                                 (ll4[(j >> 1) as usize] as c_int & 0xf
-                                                    | (i >> 16) << 4)
-                                                    as u8;
+                                                    | ((i >> 16) << 4))
+                                                    as u8
                                         }
                                         i = j;
                                         j = tmp_0;
@@ -925,10 +929,10 @@ pub(crate) fn decompress(
                                     s.tPos = match ll16.get(s.tPos as usize) {
                                         None => error!(BZ_DATA_ERROR),
                                         Some(&low_bits) => {
-                                            let high_bits = ll4[(s.tPos >> 1) as usize]
-                                                >> (s.tPos << 2 & 0x4)
+                                            let high_bits = (ll4[(s.tPos >> 1) as usize]
+                                                >> ((s.tPos << 2) & 0b100))
                                                 & 0xf;
-                                            u32::from(low_bits) | u32::from(high_bits) << 16
+                                            u32::from(low_bits) | (u32::from(high_bits) << 16)
                                         }
                                     };
                                     s.nblock_used += 1;
