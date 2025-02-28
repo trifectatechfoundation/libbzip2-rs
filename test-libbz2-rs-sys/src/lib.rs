@@ -1002,14 +1002,14 @@ fn miri_compress_64_bit_arithmetic_edge_cases() {
 
         assert_eq!(BZ_RUN_OK, BZ2_bzCompress(strm, BZ_RUN));
 
-        let total_in = (strm.total_in_hi32 as u64) << 32 | strm.total_in_lo32 as u64;
+        let total_in = ((strm.total_in_hi32 as u64) << 32) | strm.total_in_lo32 as u64;
         assert_eq!(total_in, u32::MAX as u64 - 5 + input.len() as u64);
 
         assert_eq!(BZ_STREAM_END, BZ2_bzCompress(strm, BZ_FINISH));
 
         const OUTPUT_SIZE: u64 = 54;
 
-        let total_out = (strm.total_out_hi32 as u64) << 32 | strm.total_out_lo32 as u64;
+        let total_out = ((strm.total_out_hi32 as u64) << 32) | strm.total_out_lo32 as u64;
         assert_eq!(total_out, u32::MAX as u64 - 5 + OUTPUT_SIZE);
 
         BZ2_bzCompressEnd(strm);
@@ -1045,14 +1045,14 @@ fn miri_compress_64_bit_arithmetic_edge_cases() {
         strm.avail_in = second_chunk;
         assert_eq!(BZ_RUN_OK, BZ2_bzCompress(strm, BZ_FLUSH));
 
-        let total_in = (strm.total_in_hi32 as u64) << 32 | strm.total_in_lo32 as u64;
+        let total_in = ((strm.total_in_hi32 as u64) << 32) | strm.total_in_lo32 as u64;
         assert_eq!(total_in, u32::MAX as u64 + second_chunk as u64);
 
         assert_eq!(BZ_STREAM_END, BZ2_bzCompress(strm, BZ_FINISH));
 
         const OUTPUT_SIZE: u64 = 54;
 
-        let total_out = (strm.total_out_hi32 as u64) << 32 | strm.total_out_lo32 as u64;
+        let total_out = ((strm.total_out_hi32 as u64) << 32) | strm.total_out_lo32 as u64;
         assert_eq!(total_out, u32::MAX as u64 + OUTPUT_SIZE);
 
         BZ2_bzCompressEnd(strm);
