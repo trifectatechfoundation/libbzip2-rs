@@ -333,9 +333,9 @@ fn send_mtf_values(s: &mut EState) {
         ---*/
         if nGroups == 6 {
             for v in 0..alphaSize {
-                s.len_pack[v][0] = (s.len[1][v] as u32) << 16 | s.len[0][v] as u32;
-                s.len_pack[v][1] = (s.len[3][v] as u32) << 16 | s.len[2][v] as u32;
-                s.len_pack[v][2] = (s.len[5][v] as u32) << 16 | s.len[4][v] as u32;
+                s.len_pack[v][0] = ((s.len[1][v] as u32) << 16) | (s.len[0][v] as u32);
+                s.len_pack[v][1] = ((s.len[3][v] as u32) << 16) | (s.len[2][v] as u32);
+                s.len_pack[v][2] = ((s.len[5][v] as u32) << 16) | (s.len[4][v] as u32);
             }
         }
 
