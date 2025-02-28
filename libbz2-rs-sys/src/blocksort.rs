@@ -661,24 +661,8 @@ fn mainSort(
 
     j = (block[0] as i32) << 8;
     i = nblock - 1 as c_int;
-    while i >= 3 as c_int {
-        j = j >> 8 | (block[i as usize] as u16 as c_int) << 8;
-        ftab[j as usize] += 1;
-
-        j = j >> 8 | (block[(i - 1 as c_int) as usize] as u16 as c_int) << 8;
-        ftab[j as usize] += 1;
-
-        j = j >> 8 | (block[(i - 2 as c_int) as usize] as u16 as c_int) << 8;
-        ftab[j as usize] += 1;
-
-        j = j >> 8 | (block[(i - 3 as c_int) as usize] as u16 as c_int) << 8;
-        ftab[j as usize] += 1;
-
-        i -= 4;
-    }
-
-    while i >= 0 as c_int {
-        j = j >> 8 as c_int | (block[i as usize] as u16 as c_int) << 8 as c_int;
+    while i >= 0 {
+        j = (j >> 8) | (i32::from(block[i as usize]) << 8);
         ftab[j as usize] += 1;
         i -= 1;
     }
@@ -698,32 +682,9 @@ fn mainSort(
 
     s = ((block[0 as c_int as usize] as c_int) << 8 as c_int) as u16;
     i = nblock - 1 as c_int;
-    while i >= 3 as c_int {
-        s = (s as c_int >> 8 | (block[i as usize] as c_int) << 8) as u16;
-        j = ftab[usize::from(s)] as i32 - 1;
-        ftab[usize::from(s)] = j as u32;
-        ptr[j as usize] = i as u32;
 
-        s = (s as c_int >> 8 | (block[(i - 1 as c_int) as usize] as c_int) << 8) as u16;
-        j = ftab[usize::from(s)] as i32 - 1;
-        ftab[usize::from(s)] = j as u32;
-        ptr[j as usize] = i as u32 - 1;
-
-        s = (s as c_int >> 8 | (block[(i - 2 as c_int) as usize] as c_int) << 8) as u16;
-        j = ftab[usize::from(s)] as i32 - 1;
-        ftab[usize::from(s)] = j as u32;
-        ptr[j as usize] = i as u32 - 2;
-
-        s = (s as c_int >> 8 | (block[(i - 3 as c_int) as usize] as c_int) << 8) as u16;
-        j = ftab[usize::from(s)] as i32 - 1;
-        ftab[usize::from(s)] = j as u32;
-        ptr[j as usize] = i as u32 - 3;
-
-        i -= 4 as c_int;
-    }
-
-    while i >= 0 as c_int {
-        s = (s as c_int >> 8 as c_int | (block[i as usize] as c_int) << 8 as c_int) as u16;
+    while i >= 0 {
+        s = (s >> 8) | (u16::from(block[i as usize]) << 8);
         j = ftab[usize::from(s)] as i32 - 1;
         ftab[usize::from(s)] = j as u32;
         ptr[j as usize] = i as u32;
