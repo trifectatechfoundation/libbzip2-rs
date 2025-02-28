@@ -660,11 +660,9 @@ fn mainSort(
     ftab.fill(0);
 
     j = (block[0] as i32) << 8;
-    i = nblock - 1 as c_int;
-    while i >= 0 {
-        j = (j >> 8) | (i32::from(block[i as usize]) << 8);
+    for &block in block[..nblock as usize].iter().rev() {
+        j = (j >> 8) | (i32::from(block) << 8);
         ftab[j as usize] += 1;
-        i -= 1;
     }
 
     for i in 0..BZ_N_OVERSHOOT {
@@ -681,15 +679,12 @@ fn mainSort(
     }
 
     s = ((block[0 as c_int as usize] as c_int) << 8 as c_int) as u16;
-    i = nblock - 1 as c_int;
 
-    while i >= 0 {
-        s = (s >> 8) | (u16::from(block[i as usize]) << 8);
+    for (i, &block) in block[..nblock as usize].iter().enumerate().rev() {
+        s = (s >> 8) | (u16::from(block) << 8);
         j = ftab[usize::from(s)] as i32 - 1;
         ftab[usize::from(s)] = j as u32;
         ptr[j as usize] = i as u32;
-
-        i -= 1;
     }
 
     bigDone.fill(false);
