@@ -645,7 +645,6 @@ fn mainSort(
     let mut k: i32;
     let mut ss: i32;
     let mut sb: i32;
-    let mut runningOrder: [i32; 256] = [0; 256];
     let mut bigDone: [bool; 256] = [false; 256];
     let mut copyStart: [i32; 256] = [0; 256];
     let mut copyEnd: [i32; 256] = [0; 256];
@@ -688,11 +687,8 @@ fn mainSort(
     }
 
     bigDone.fill(false);
-    i = 0 as c_int;
-    while i <= 255 as c_int {
-        runningOrder[i as usize] = i;
-        i += 1;
-    }
+    let mut runningOrder: [i32; 256] = core::array::from_fn(|i| i as i32);
+
     let mut vv: i32;
     let mut h: i32 = 1 as c_int;
     loop {
