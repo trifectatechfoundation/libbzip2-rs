@@ -640,7 +640,6 @@ fn mainSort(
     verb: i32,
     budget: &mut i32,
 ) {
-    let mut i: i32;
     let mut j: i32;
     let mut k: i32;
     let mut ss: i32;
@@ -706,8 +705,7 @@ fn mainSort(
 
     loop {
         h /= 3 as c_int;
-        i = h;
-        while i <= 255 as c_int {
+        for i in h..256 {
             vv = runningOrder[i as usize];
             j = i;
             while BIGFREQ!(runningOrder[(j - h) as usize] as usize) > BIGFREQ!(vv as usize) {
@@ -718,7 +716,6 @@ fn mainSort(
                 }
             }
             runningOrder[j as usize] = vv;
-            i += 1;
         }
         if h == 1 as c_int {
             break;
