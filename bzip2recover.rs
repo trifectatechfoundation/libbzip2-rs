@@ -66,7 +66,7 @@ impl BitStream {
         if self.buff_live > 0 {
             self.buff_live -= 1;
 
-            Ok(Some(self.buffer >> self.buff_live & 0x1 != 0))
+            Ok(Some((self.buffer >> self.buff_live) & 0x1 != 0))
         } else {
             let mut ret_val = [0u8];
             let n = self.handle.read(&mut ret_val).map_err(Error::Reading)?;
@@ -79,7 +79,7 @@ impl BitStream {
             self.buff_live = 7;
             self.buffer = ret_val[0] as i32;
 
-            Ok(Some(self.buffer >> 7 & 0x1 != 0))
+            Ok(Some((self.buffer >> 7) & 0x1 != 0))
         }
     }
 
@@ -91,7 +91,7 @@ impl BitStream {
             self.buff_live = 1;
             self.buffer = bit & 0x1;
         } else {
-            self.buffer = self.buffer << 1 | bit & 0x1;
+            self.buffer = (self.buffer << 1) | bit & 0x1;
             self.buff_live += 1;
         }
 
@@ -100,7 +100,7 @@ impl BitStream {
 
     fn put_u8(&mut self, c: u8) -> Result<(), Error> {
         for i in (0..8).rev() {
-            self.put_bit((c as u32 >> i & 0x1) as i32)?;
+            self.put_bit(((c as u32 >> i) & 0x1) as i32)?;
         }
 
         Ok(())
@@ -108,7 +108,7 @@ impl BitStream {
 
     fn put_u32(&mut self, c: u32) -> Result<(), Error> {
         for i in (0..32).rev() {
-            self.put_bit((c >> i & 0x1) as i32)?;
+            self.put_bit(((c >> i) & 0x1) as i32)?;
         }
 
         Ok(())
@@ -239,8 +239,8 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
                 break;
             }
             Some(b) => {
-                buff_hi = buff_hi << 1 | buff_lo >> 31;
-                buff_lo = buff_lo << 1 | b as u32;
+                buff_hi = (buff_hi << 1) | (buff_lo >> 31);
+                buff_lo = (buff_lo << 1) | b as u32;
                 if (buff_hi & 0xffff) == BLOCK_HEADER_HI && buff_lo == BLOCK_HEADER_LO
                     || (buff_hi & 0xffff) == BLOCK_ENDMARK_HI && buff_lo == BLOCK_ENDMARK_LO
                 {
@@ -304,11 +304,11 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
             break;
         };
 
-        buff_hi = buff_hi << 1 | buff_lo >> 31;
-        buff_lo = buff_lo << 1 | b as u32;
+        buff_hi = (buff_hi << 1) | (buff_lo >> 31);
+        buff_lo = (buff_lo << 1) | b as u32;
 
         if bits_read == 47u64.wrapping_add(rb_start[wr_block]) {
-            block_crc = buff_hi << 16 | buff_lo >> 16;
+            block_crc = (buff_hi << 16) | (buff_lo >> 16);
         }
         if bits_read >= rb_start[wr_block] && bits_read <= rb_end[wr_block] {
             if let Some(output_bitstream) = output_bitstream.as_mut() {

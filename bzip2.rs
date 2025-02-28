@@ -362,8 +362,8 @@ fn compressStream(
             if nbytes_in_lo32 == 0 && nbytes_in_hi32 == 0 {
                 eprintln!(" no data compressed.");
             } else {
-                let bytes_in = (nbytes_in_hi32 as u64) << 32 | nbytes_in_lo32 as u64;
-                let bytes_out = (nbytes_out_hi32 as u64) << 32 | nbytes_out_lo32 as u64;
+                let bytes_in = ((nbytes_in_hi32 as u64) << 32) | nbytes_in_lo32 as u64;
+                let bytes_out = ((nbytes_out_hi32 as u64) << 32) | nbytes_out_lo32 as u64;
 
                 let nbytes_in_d = bytes_in as f64;
                 let nbytes_out_d = bytes_out as f64;
