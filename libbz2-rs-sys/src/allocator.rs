@@ -141,6 +141,15 @@ mod rust_allocator {
 }
 
 impl Allocator {
+    #[cfg(feature = "rust-allocator")]
+    fn aligned_array_layout<T>(length: usize) -> core::alloc::Layout {
+        core::alloc::Layout::from_size_align(
+            length * core::mem::size_of::<T>(),
+            Ord::max(64, core::mem::align_of::<T>()),
+        )
+        .unwrap()
+    }
+
     /// Allocates `count` contiguous values of type `T`, and zeros out all elements.
     pub(crate) fn allocate_zeroed<T>(&self, count: usize) -> Option<*mut T> {
         const {
@@ -151,7 +160,7 @@ impl Allocator {
         match self {
             #[cfg(feature = "rust-allocator")]
             Allocator::Rust => {
-                let layout = core::alloc::Layout::array::<T>(count).unwrap();
+                let layout = Self::aligned_array_layout::<T>(count);
                 let ptr = unsafe { alloc::alloc::alloc_zeroed(layout) };
                 (!ptr.is_null()).then_some(ptr.cast())
             }
@@ -185,7 +194,7 @@ impl Allocator {
         match self {
             #[cfg(feature = "rust-allocator")]
             Allocator::Rust => {
-                let layout = core::alloc::Layout::array::<T>(count).unwrap();
+                let layout = Self::aligned_array_layout::<T>(count);
                 unsafe { alloc::alloc::dealloc(ptr.cast(), layout) }
             }
             #[cfg(feature = "c-allocator")]
