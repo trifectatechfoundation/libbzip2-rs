@@ -25,12 +25,18 @@
         "decompress-rs": [
             "./decompress rs tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
             "./decompress rs tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
-            "./decompress rs tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2"
+            "./decompress rs tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
+            "./decompress rs tests/input/quick/sample3.bz2",
+            "./decompress rs tests/input/quick/sample1.bz2",
+            "./decompress rs tests/input/quick/sample2.bz2"
         ],
         "decompress-c": [
             "./decompress c tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
             "./decompress c tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
-            "./decompress c tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2"
+            "./decompress c tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
+            "./decompress c tests/input/quick/sample3.bz2",
+            "./decompress c tests/input/quick/sample1.bz2",
+            "./decompress c tests/input/quick/sample2.bz2"
         ]
     },
     "render-versus-self": {
