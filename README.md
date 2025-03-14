@@ -1,6 +1,6 @@
 ![checks](https://github.com/trifectatechfoundation/libbzip2-rs/actions/workflows/checks.yaml/badge.svg?branch=main)
 [![codecov](https://codecov.io/gh/trifectatechfoundation/libbzip2-rs/graph/badge.svg?token=Lqtmehzxm0)](https://codecov.io/gh/trifectatechfoundation/libbzip2-rs)
-[![Crates.io](https://img.shields.io/crates/v/libbz2-rs-sys.svg)](https://crates.io/crates/libbzip2-rs-sys)
+[![Crates.io](https://img.shields.io/crates/v/libbz2-rs-sys.svg)](https://crates.io/crates/libbz2-rs-sys)
 
 
 # libbzip2-rs: a safer libbzip
