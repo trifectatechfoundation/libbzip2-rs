@@ -97,7 +97,7 @@ pub(crate) use prefix;
 ///
 /// - The first component is the version of stock zlib that this release is compatible with
 /// - The final component is the zlib-rs version used to build this release.
-#[export_name = prefix!(BZ2_bzlibVersion)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzlibVersion))]
 #[cfg(feature = "stdio")]
 pub const extern "C" fn BZ2_bzlibVersion() -> *const core::ffi::c_char {
     const LIBBZ2_RS_SYS_VERSION: &str = concat!(libbz2_rs_sys_version!(), "\0");
@@ -759,7 +759,7 @@ fn isempty_rl(s: &mut EState) -> bool {
 ///     - `strm` is `NULL`
 ///     - `strm` satisfies the requirements of `&mut *strm`
 /// * The `bzalloc`, `bzfree` and `opaque` fields form a [valid allocator](bz_stream#custom-allocators).
-#[export_name = prefix!(BZ2_bzCompressInit)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzCompressInit))]
 pub unsafe extern "C" fn BZ2_bzCompressInit(
     strm: *mut bz_stream,
     blockSize100k: c_int,
@@ -1077,7 +1077,7 @@ impl TryFrom<i32> for Action {
 /// * Either
 ///     - `strm.next_out` is `NULL` and `strm.avail_out` is `0`
 ///     - `strm.next_out` is writable for `strm.avail_out` bytes
-#[export_name = prefix!(BZ2_bzCompress)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzCompress))]
 pub unsafe extern "C" fn BZ2_bzCompress(strm: *mut bz_stream, action: c_int) -> c_int {
     let Some(strm) = (unsafe { BzStream::from_ptr(strm) }) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
@@ -1182,7 +1182,7 @@ fn compress_loop(strm: &mut BzStream<EState>, s: &mut EState, action: i32) -> Re
 /// * Either
 ///     - `strm` is `NULL`
 ///     - `strm` satisfies the requirements of `&mut *strm` and was initialized with [`BZ2_bzCompressInit`]
-#[export_name = prefix!(BZ2_bzCompressEnd)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzCompressEnd))]
 pub unsafe extern "C" fn BZ2_bzCompressEnd(strm: *mut bz_stream) -> c_int {
     let Some(strm) = (unsafe { BzStream::from_ptr(strm) }) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
@@ -1243,7 +1243,7 @@ pub(crate) enum DecompressMode {
 ///     - `strm` is `NULL`
 ///     - `strm` satisfies the requirements of `&mut *strm`
 /// * The `bzalloc`, `bzfree` and `opaque` fields form a [valid allocator](bz_stream#custom-allocators).
-#[export_name = prefix!(BZ2_bzDecompressInit)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzDecompressInit))]
 pub unsafe extern "C" fn BZ2_bzDecompressInit(
     strm: *mut bz_stream,
     verbosity: c_int,
@@ -1786,7 +1786,7 @@ fn un_rle_obuf_to_output_small(strm: &mut BzStream<DState>, s: &mut DState) -> b
 /// * Either
 ///     - `strm.next_out` is `NULL` and `strm.avail_out` is `0`
 ///     - `strm.next_out` is writable for `strm.avail_out` bytes
-#[export_name = prefix!(BZ2_bzDecompress)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzDecompress))]
 pub unsafe extern "C" fn BZ2_bzDecompress(strm: *mut bz_stream) -> c_int {
     let Some(strm) = (unsafe { BzStream::from_ptr(strm) }) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
@@ -1888,7 +1888,7 @@ pub(crate) fn BZ2_bzDecompressHelp(strm: &mut BzStream<DState>) -> ReturnCode {
 /// * Either
 ///     - `strm` is `NULL`
 ///     - `strm` satisfies the requirements of `&mut *strm` and was initialized with [`BZ2_bzDecompressInit`]
-#[export_name = prefix!(BZ2_bzDecompressEnd)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzDecompressEnd))]
 pub unsafe extern "C" fn BZ2_bzDecompressEnd(strm: *mut bz_stream) -> c_int {
     let Some(strm) = (unsafe { BzStream::from_ptr(strm) }) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
@@ -1959,7 +1959,7 @@ fn BZ2_bzDecompressEndHelp(strm: &mut BzStream<DState>) -> ReturnCode {
 ///     - `source` is readable for `sourceLen`
 ///
 /// [`pointer::as_mut`]: https://doc.rust-lang.org/core/primitive.pointer.html#method.as_mut
-#[export_name = prefix!(BZ2_bzBuffToBuffCompress)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzBuffToBuffCompress))]
 pub unsafe extern "C" fn BZ2_bzBuffToBuffCompress(
     dest: *mut c_char,
     destLen: *mut c_uint,
@@ -2074,7 +2074,7 @@ unsafe fn BZ2_bzBuffToBuffCompressHelp(
 ///     - `source` is readable for `sourceLen`
 ///
 /// [`pointer::as_mut`]: https://doc.rust-lang.org/core/primitive.pointer.html#method.as_mut
-#[export_name = prefix!(BZ2_bzBuffToBuffDecompress)]
+#[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzBuffToBuffDecompress))]
 pub unsafe extern "C" fn BZ2_bzBuffToBuffDecompress(
     dest: *mut c_char,
     destLen: *mut c_uint,

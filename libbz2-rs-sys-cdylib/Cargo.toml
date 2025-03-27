@@ -24,7 +24,7 @@ semver-prefix = ["libbz2-rs-sys/semver-prefix"] # prefix all symbols in a semver
 capi = []
 
 [dependencies]
-libbz2-rs-sys = { version = "0.1.3", path = "../libbz2-rs-sys", default-features = false, features = ["c-allocator"] }
+libbz2-rs-sys = { version = "0.1.3", path = "../libbz2-rs-sys", default-features = false, features = ["c-allocator", "export-symbols"] }
 libc = "0.2"
 
 [package.metadata.capi.library]
