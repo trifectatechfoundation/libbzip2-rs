@@ -1362,24 +1362,14 @@ mod compress_command {
         let sample = Path::new("tests/input/quick/sample3.ref");
 
         let mut cmd = command();
-        cmd.arg("--compress")
-            .arg("-1")
-            .arg("--keep")
-            .arg("--stdout")
-            .arg("-v")
-            .arg(sample)
-            .stdout(Stdio::piped());
-
-        let output = cmd.output().unwrap();
-
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        assert_eq!(
-            String::from_utf8_lossy(&output.stderr).replace(bzip2_binary(), "bzip2"),
+        expect_success!(
+            cmd.arg("--compress")
+                .arg("-1")
+                .arg("--keep")
+                .arg("--stdout")
+                .arg("-v")
+                .arg(sample)
+                .stdout(Stdio::piped()),
             format!(
                 "  {in_file}: 440.454:1,  0.018 bits/byte, 99.77% saved, 120244 in, 273 out.\n",
                 in_file = sample.display(),
@@ -1387,24 +1377,14 @@ mod compress_command {
         );
 
         let mut cmd = command();
-        cmd.arg("--compress")
-            .arg("-1")
-            .arg("--keep")
-            .arg("--stdout")
-            .arg("-vv")
-            .arg(sample)
-            .stdout(Stdio::piped());
-
-        let output = cmd.output().unwrap();
-
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        assert_eq!(
-            String::from_utf8_lossy(&output.stderr).replace(bzip2_binary(), "bzip2"),
+        expect_success!(
+            cmd.arg("--compress")
+                .arg("-1")
+                .arg("--keep")
+                .arg("--stdout")
+                .arg("-vv")
+                .arg(sample)
+                .stdout(Stdio::piped()),
             format!(
                 concat!(
                     "  {in_file}: \n",
@@ -1420,7 +1400,6 @@ mod compress_command {
         );
 
         let mut cmd = command();
-
         expect_success!(
             cmd.arg("--compress")
                 .arg("-1")
