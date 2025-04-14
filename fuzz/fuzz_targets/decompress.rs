@@ -22,7 +22,7 @@ fn decompress_help(input: &[u8]) -> Vec<u8> {
     dest_vec
 }
 
-fuzz_target!(|data: String| {
+fuzz_target!(|data: Vec<u8>| {
     let mut length = 8 * 1024;
     let mut deflated = vec![0; length as usize];
 
@@ -42,11 +42,11 @@ fuzz_target!(|data: String| {
 
     let output = decompress_help(&deflated);
 
-    if output != data.as_bytes() {
+    if output != data {
         let path = std::env::temp_dir().join("deflate.txt");
         std::fs::write(&path, &data).unwrap();
         eprintln!("saved input file to {path:?}");
     }
 
-    assert_eq!(output, data.as_bytes());
+    assert_eq!(output, data);
 });
