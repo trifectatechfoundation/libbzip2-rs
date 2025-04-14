@@ -97,13 +97,15 @@ jobs:
         env:
           RUST_BACKTRACE: 1
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
-        if: matrix.os != 'windows-2022'
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
+        if: matrix.os != 'windows-2022' && matrix.rust == 'stable'
         with:
-          files: lcov.info
+          files: ./lcov.info
           fail_ci_if_error: false
+          flags: test-${{matrix.target}}
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: codecov/codecov-demo
+          name: test
+          verbose: true
 
   build-qemu:
     name: QEMU build & test
