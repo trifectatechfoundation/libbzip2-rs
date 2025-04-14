@@ -137,7 +137,7 @@ type FreeFunc = unsafe extern "C" fn(*mut c_void, *mut c_void) -> ();
 /// to be safe:
 ///
 /// - a call `bzalloc(opaque, n, m)` must return a pointer `p` to `n * m` bytes of memory, or
-///     `NULL` if out of memory
+///   `NULL` if out of memory
 /// - a call `bzfree(opaque, p)` must free that memory
 ///
 /// The `strm.opaque` value is passed to as the first argument to all calls to `bzalloc`
@@ -1063,7 +1063,7 @@ impl TryFrom<i32> for Action {
 /// - [`BZ_RUN_OK`] successfully compressed, but ran out of input or output space
 /// - [`BZ_FLUSH_OK`] not all compressed data has been written to the output yet
 /// - [`BZ_FINISH_OK`] if all input has been read but not all output has been written to the output
-///     buffer yet
+///   buffer yet
 /// - [`BZ_STREAM_END`] if all input has been read all output has been written to the output buffer
 ///
 /// # Safety
@@ -1772,7 +1772,7 @@ fn un_rle_obuf_to_output_small(strm: &mut BzStream<DState>, s: &mut DState) -> b
 /// - [`BZ_DATA_ERROR_MAGIC`] if the compressed stream doesn't begin with the right magic bytes
 /// - [`BZ_MEM_ERROR`] if there wasn't enough memory available
 /// - [`BZ_STREAM_END`] if the logical end of the data stream was detected and all output has been
-///     written to the output buffer
+///   written to the output buffer
 /// - [`BZ_OK`] otherwise
 ///
 /// # Safety
