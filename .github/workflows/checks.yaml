@@ -72,14 +72,10 @@ jobs:
       - name: target
         run: "rustc -vV | sed -n 's|host: ||p'"
         if: matrix.os != 'windows-2022'
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@56ab7930c591507f833cbaed864d201386d518a8
+      - name: Install cargo-llvm-cov & cargo-nextest
+        uses: taiki-e/install-action@a48a50298f98c47e46a957ae6f82c44cc4878e42 # v2.49.47
         with:
-          tool: cargo-llvm-cov
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@56ab7930c591507f833cbaed864d201386d518a8
-        with:
-          tool: cargo-nextest
+          tool: cargo-llvm-cov,cargo-nextest
       - name: cargo build
         run: cargo build --target ${{matrix.target}} ${{ matrix.features }}
       - name: cargo build (no_std)
@@ -90,15 +86,16 @@ jobs:
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --features rust-allocator --crate-type rlib
         env:
           RUSTFLAGS: -Aunused_variables -Aunused_assignments
-      - name: cargo nextest # reports segfaults in a helpful way
-        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.features }} --no-fail-fast --workspace
-        env:
-          RUST_BACKTRACE: 1
-      - name: cargo test with llvm-cov
-        run: cargo llvm-cov --target ${{matrix.target}} ${{ matrix.features }} --lcov --output-path lcov.info --ignore-filename-regex "test-libbz2" --workspace
-        env:
-          RUST_BACKTRACE: 1
+      - name: cargo llvm-cov nextest
         if: matrix.os != 'windows-2022'
+        run: cargo llvm-cov nextest --target ${{matrix.target}} ${{ matrix.features }} --lcov --output-path lcov.info --ignore-filename-regex "test-libbz2" --workspace
+        env:
+          RUST_BACKTRACE: 1
+      - name: cargo nextest
+        if: matrix.os == 'windows-2022'
+        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.features }} --no-fail-fast
+        env:
+          RUST_BACKTRACE: 1
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         if: matrix.os != 'windows-2022'
