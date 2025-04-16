@@ -194,11 +194,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             features: default
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             features: c-allocator
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             features: rust-allocator
           - os: macos-14
             features: ""
@@ -416,10 +416,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
         features:
           - ''
-    # At the time of writing, 'latest' referred to ubuntu-22
-    # for libabigail we really need ubuntu-24, which just started getting rolled out
-    # In the future, this can likely be changed to `ubuntu-latest` again.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
