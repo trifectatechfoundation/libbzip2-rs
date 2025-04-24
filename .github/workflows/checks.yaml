@@ -236,12 +236,10 @@ jobs:
         include:
           - fuzz_target: decompress
             corpus: "bzip2-files/compressed"
-            features: '--no-default-features --features="disable-checksum"'
-            flags: fuzz-decompress
+            features: '--no-default-features --features="disable-checksum,keep-invalid-in-corpus"'
           - fuzz_target: compress
             corpus: ""
             features: ''
-            flags: fuzz-compress
     steps:
       - name: Checkout sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -259,11 +257,13 @@ jobs:
       - name: Download custom decompression corpus
         if: ${{ contains(matrix.corpus, 'bzip2-files') }}
         run: |
-          wget https://github.com/trifectatechfoundation/compression-corpus/releases/download/2025-04-14-151155/bzip2-files.zip
+          wget https://github.com/trifectatechfoundation/compression-corpus/releases/download/2025-04-24-180855/bzip2-files.zip
           unzip bzip2-files.zip -d bzip2-files
       - name: Run `cargo fuzz`
         env:
           RUST_BACKTRACE: "1"
+          # prevents `cargo fuzz coverage` from rebuilding everything
+          RUSTFLAGS: "-C instrument-coverage"
         run: |
           cargo fuzz run ${{matrix.features}} ${{matrix.fuzz_target}} ${{matrix.corpus}} -- -max_total_time=20
       - name: Fuzz codecov
@@ -273,7 +273,7 @@ jobs:
               target/$(rustc --print host-tuple)/coverage/$(rustc --print host-tuple)/release/${{matrix.fuzz_target}} \
               -instr-profile=fuzz/coverage/${{matrix.fuzz_target}}/coverage.profdata \
               --format=lcov \
-              -ignore-filename-regex="\.cargo|\.rustup|fuzz/src|test-libbz2" > lcov.info
+              -ignore-filename-regex="\.cargo|\.rustup|fuzz_targets|test-libbz2" > lcov.info
       - name: List the corpus
         if: ${{ contains(matrix.corpus, 'bzip2-files') }}
         run: |
@@ -283,7 +283,7 @@ jobs:
         with:
           files: ./lcov.info
           fail_ci_if_error: false
-          flags: ${{ matrix.flags }}
+          flags: fuzz-${{ matrix.fuzz_target }}
           token: ${{ secrets.CODECOV_TOKEN }}
           name: fuzz
 

@@ -16,6 +16,7 @@ default = ["rust-allocator"]
 c-allocator = ["libbz2-rs-sys/c-allocator"]
 rust-allocator = ["libbz2-rs-sys/rust-allocator"]
 disable-checksum = ["libbz2-rs-sys/__internal-fuzz-disable-checksum"]
+keep-invalid-in-corpus = [] # For code coverage (on CI), we want to keep inputs that triggered the error branches
 
 [dependencies.libfuzzer-sys]
 version = "0.4"
@@ -62,5 +63,11 @@ doc = false
 [[bin]]
 name = "compress"
 path = "fuzz_targets/compress.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "end_to_end"
+path = "fuzz_targets/end_to_end.rs"
 test = false
 doc = false
