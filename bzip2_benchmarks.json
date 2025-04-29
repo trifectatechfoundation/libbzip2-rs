@@ -1,4 +1,10 @@
 {
+    "repetitions-for-group": {
+        "compress-rs": 20,
+        "compress-c": 20,
+        "decompress-rs": 50,
+        "decompress-c": 50
+    },
     "commands": {
         "compress-rs": [
             "./compress rs 1 silesia-small.tar",
