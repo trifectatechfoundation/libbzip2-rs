@@ -1,19 +1,18 @@
 #![no_main]
-use libbz2_rs_sys::{BZ_FINISH, BZ_OK, BZ_STREAM_END};
+use libbz2_rs_sys::{BZ_FINISH, BZ_FINISH_OK, BZ_OK, BZ_STREAM_END};
 use libfuzzer_sys::fuzz_target;
 
 fn compress_c(data: &[u8]) -> Vec<u8> {
-    // first, deflate the data using the standard zlib
-    let length = 8 * 1024;
-    let mut deflated = vec![0u8; length as usize];
+    // First, decompress the data with the stock C bzip2.
+    let mut output = vec![0u8; 1024];
 
     let mut stream = bzip2_sys::bz_stream {
         next_in: data.as_ptr() as *mut _,
         avail_in: data.len() as _,
         total_in_lo32: 0,
         total_in_hi32: 0,
-        next_out: deflated.as_mut_ptr() as *mut _,
-        avail_out: deflated.len() as _,
+        next_out: output.as_mut_ptr() as *mut _,
+        avail_out: output.len() as _,
         total_out_lo32: 0,
         total_out_hi32: 0,
         state: std::ptr::null_mut(),
@@ -27,11 +26,32 @@ fn compress_c(data: &[u8]) -> Vec<u8> {
         assert_eq!(err, BZ_OK);
     };
 
-    let error = unsafe { bzip2_sys::BZ2_bzCompress(&mut stream, BZ_FINISH) };
+    let error = loop {
+        match unsafe { bzip2_sys::BZ2_bzCompress(&mut stream, BZ_FINISH) } {
+            BZ_FINISH_OK => {
+                let used = output.len() - stream.avail_out as usize;
+                // The output buffer is full.
+                let add_space: u32 = Ord::max(1024, output.len().try_into().unwrap());
+                output.resize(output.len() + add_space as usize, 0);
 
-    assert_eq!(error, BZ_STREAM_END);
+                // If resize() reallocates, it may have moved in memory.
+                stream.next_out = output.as_mut_ptr().cast::<i8>().wrapping_add(used as usize);
+                stream.avail_out += add_space;
 
-    deflated.truncate(
+                continue;
+            }
+            BZ_STREAM_END => {
+                break BZ_OK;
+            }
+            ret => {
+                break ret;
+            }
+        }
+    };
+
+    assert_eq!(error, BZ_OK);
+
+    output.truncate(
         ((u64::from(stream.total_out_hi32) << 32) + u64::from(stream.total_out_lo32))
             .try_into()
             .unwrap(),
@@ -42,10 +62,12 @@ fn compress_c(data: &[u8]) -> Vec<u8> {
         assert_eq!(err, BZ_OK);
     }
 
-    deflated
+    output
 }
 
 fuzz_target!(|input: (String, usize)| {
+    use libbz2_rs_sys::*;
+
     let (data, chunk_size) = input;
 
     if chunk_size == 0 {
@@ -54,10 +76,10 @@ fuzz_target!(|input: (String, usize)| {
 
     let deflated = compress_c(data.as_bytes());
 
-    let mut stream = libbz2_rs_sys::bz_stream::zeroed();
+    let mut stream = bz_stream::zeroed();
 
     unsafe {
-        let err = libbz2_rs_sys::BZ2_bzDecompressInit(&mut stream, 0, 0);
+        let err = BZ2_bzDecompressInit(&mut stream, 0, 0);
         assert_eq!(err, BZ_OK);
     };
 
@@ -69,13 +91,23 @@ fuzz_target!(|input: (String, usize)| {
         stream.next_in = chunk.as_ptr() as *mut _;
         stream.avail_in = chunk.len() as _;
 
-        let err = unsafe { libbz2_rs_sys::BZ2_bzDecompress(&mut stream) };
+        let err = unsafe { BZ2_bzDecompress(&mut stream) };
         match err {
             BZ_OK => continue,
+            BZ_RUN_OK => panic!("BZ_RUN_OK"),
+            BZ_FLUSH_OK => panic!("BZ_FLUSH_OK"),
+            BZ_FINISH_OK => panic!("BZ_FINISH_OK"),
             BZ_STREAM_END => continue,
-            _ => {
-                panic!("{err}");
-            }
+            BZ_SEQUENCE_ERROR => panic!("BZ_SEQUENCE_ERROR"),
+            BZ_PARAM_ERROR => panic!("BZ_PARAM_ERROR"),
+            BZ_MEM_ERROR => panic!("BZ_MEM_ERROR"),
+            BZ_DATA_ERROR => panic!("BZ_DATA_ERROR"),
+            BZ_DATA_ERROR_MAGIC => panic!("BZ_DATA_ERROR_MAGIC"),
+            BZ_IO_ERROR => panic!("BZ_IO_ERROR"),
+            BZ_UNEXPECTED_EOF => panic!("BZ_UNEXPECTED_EOF"),
+            BZ_OUTBUFF_FULL => panic!("BZ_OUTBUFF_FULL"),
+            BZ_CONFIG_ERROR => panic!("BZ_CONFIG_ERROR"),
+            _ => panic!("{err}"),
         }
     }
 
@@ -87,7 +119,7 @@ fuzz_target!(|input: (String, usize)| {
     let output = String::from_utf8(output).unwrap();
 
     unsafe {
-        let err = libbz2_rs_sys::BZ2_bzDecompressEnd(&mut stream);
+        let err = BZ2_bzDecompressEnd(&mut stream);
         assert_eq!(err, BZ_OK);
     }
 
