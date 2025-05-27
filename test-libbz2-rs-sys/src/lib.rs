@@ -394,7 +394,6 @@ pub unsafe fn compress_c(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    let mut ret: libc::c_int;
     if dest.is_null() || dest_len.is_null() || source.is_null() {
         return -2 as libc::c_int;
     }
@@ -402,7 +401,7 @@ pub unsafe fn compress_c(
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
-        ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
+        let ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
         if ret != 0 as libc::c_int {
             return ret;
         }
@@ -410,17 +409,23 @@ pub unsafe fn compress_c(
         strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
         strm.avail_out = *dest_len;
-        ret = BZ2_bzCompress(&mut strm, 2 as libc::c_int);
-        if ret == 3 as libc::c_int {
-            BZ2_bzCompressEnd(&mut strm);
-            -8 as libc::c_int
-        } else if ret != 4 as libc::c_int {
-            BZ2_bzCompressEnd(&mut strm);
-            return ret;
-        } else {
-            *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-            BZ2_bzCompressEnd(&mut strm);
-            return 0 as libc::c_int;
+        match BZ2_bzCompress(&mut strm, 2) {
+            BZ_FINISH_OK => {
+                BZ2_bzCompressEnd(&mut strm);
+
+                BZ_OUTBUFF_FULL
+            }
+            BZ_STREAM_END => {
+                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
+                BZ2_bzCompressEnd(&mut strm);
+
+                BZ_OK
+            }
+            ret => {
+                BZ2_bzCompressEnd(&mut strm);
+
+                ret
+            }
         }
     }
 }
@@ -448,7 +453,6 @@ pub unsafe fn compress_rs(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    let mut ret: libc::c_int;
     if dest.is_null() || dest_len.is_null() || source.is_null() {
         return -2 as libc::c_int;
     }
@@ -456,7 +460,7 @@ pub unsafe fn compress_rs(
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
-        ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
+        let ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
         if ret != 0 as libc::c_int {
             return ret;
         }
@@ -464,17 +468,23 @@ pub unsafe fn compress_rs(
         strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
         strm.avail_out = *dest_len;
-        ret = BZ2_bzCompress(&mut strm, 2 as libc::c_int);
-        if ret == 3 as libc::c_int {
-            BZ2_bzCompressEnd(&mut strm);
-            -8 as libc::c_int
-        } else if ret != 4 as libc::c_int {
-            BZ2_bzCompressEnd(&mut strm);
-            return ret;
-        } else {
-            *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-            BZ2_bzCompressEnd(&mut strm);
-            return 0 as libc::c_int;
+        match BZ2_bzCompress(&mut strm, 2) {
+            BZ_FINISH_OK => {
+                BZ2_bzCompressEnd(&mut strm);
+
+                BZ_OUTBUFF_FULL
+            }
+            BZ_STREAM_END => {
+                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
+                BZ2_bzCompressEnd(&mut strm);
+
+                BZ_OK
+            }
+            ret => {
+                BZ2_bzCompressEnd(&mut strm);
+
+                ret
+            }
         }
     }
 }
