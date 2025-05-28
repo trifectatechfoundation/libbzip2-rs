@@ -262,38 +262,40 @@ pub unsafe fn decompress_c(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    let mut ret: libc::c_int;
     if dest.is_null() || dest_len.is_null() || source.is_null() {
-        return -(2 as libc::c_int);
+        return BZ_PARAM_ERROR;
     }
     strm.bzalloc = None;
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
-        ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
-        if ret != 0 as libc::c_int {
+        let ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
+        if ret != 0 {
             return ret;
         }
         strm.next_in = source as *mut libc::c_char;
         strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
         strm.avail_out = *dest_len;
-        ret = BZ2_bzDecompress(&mut strm);
-        if ret == 0 as libc::c_int {
-            if strm.avail_out > 0 as libc::c_int as libc::c_uint {
-                BZ2_bzDecompressEnd(&mut strm);
-                -(7 as libc::c_int)
-            } else {
-                BZ2_bzDecompressEnd(&mut strm);
-                -(8 as libc::c_int)
+        match BZ2_bzDecompress(&mut strm) {
+            BZ_OK => {
+                if strm.avail_out > 0 {
+                    BZ2_bzDecompressEnd(&mut strm);
+                    BZ_UNEXPECTED_EOF
+                } else {
+                    BZ2_bzDecompressEnd(&mut strm);
+                    BZ_OUTBUFF_FULL
+                }
             }
-        } else if ret != 4 as libc::c_int {
-            BZ2_bzDecompressEnd(&mut strm);
-            return ret;
-        } else {
-            *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-            BZ2_bzDecompressEnd(&mut strm);
-            return 0 as libc::c_int;
+            BZ_STREAM_END => {
+                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
+                BZ2_bzDecompressEnd(&mut strm);
+                BZ_OK
+            }
+            ret => {
+                BZ2_bzDecompressEnd(&mut strm);
+                ret
+            }
         }
     }
 }
@@ -320,38 +322,40 @@ pub unsafe fn decompress_rs(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    let mut ret: libc::c_int;
     if dest.is_null() || dest_len.is_null() || source.is_null() {
-        return -(2 as libc::c_int);
+        return BZ_PARAM_ERROR;
     }
     strm.bzalloc = None;
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
-        ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
-        if ret != 0 as libc::c_int {
+        let ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
+        if ret != 0 {
             return ret;
         }
         strm.next_in = source as *mut libc::c_char;
         strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
         strm.avail_out = *dest_len;
-        ret = BZ2_bzDecompress(&mut strm);
-        if ret == 0 as libc::c_int {
-            if strm.avail_out > 0 as libc::c_int as libc::c_uint {
-                BZ2_bzDecompressEnd(&mut strm);
-                -(7 as libc::c_int)
-            } else {
-                BZ2_bzDecompressEnd(&mut strm);
-                -(8 as libc::c_int)
+        match BZ2_bzDecompress(&mut strm) {
+            BZ_OK => {
+                if strm.avail_out > 0 {
+                    BZ2_bzDecompressEnd(&mut strm);
+                    BZ_UNEXPECTED_EOF
+                } else {
+                    BZ2_bzDecompressEnd(&mut strm);
+                    BZ_OUTBUFF_FULL
+                }
             }
-        } else if ret != 4 as libc::c_int {
-            BZ2_bzDecompressEnd(&mut strm);
-            return ret;
-        } else {
-            *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-            BZ2_bzDecompressEnd(&mut strm);
-            return 0 as libc::c_int;
+            BZ_STREAM_END => {
+                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
+                BZ2_bzDecompressEnd(&mut strm);
+                BZ_OK
+            }
+            ret => {
+                BZ2_bzDecompressEnd(&mut strm);
+                ret
+            }
         }
     }
 }
