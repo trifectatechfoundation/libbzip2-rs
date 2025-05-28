@@ -1,6 +1,4 @@
-use core::ffi::c_uint;
-
-use test_libbz2_rs_sys::{decompress_c, decompress_rs};
+use test_libbz2_rs_sys::{decompress_c_with_capacity, decompress_rs_with_capacity};
 
 fn main() {
     let mut it = std::env::args();
@@ -12,21 +10,15 @@ fn main() {
             let path = it.next().unwrap();
             let input = std::fs::read(&path).unwrap();
 
-            let mut dest_vec = vec![0u8; 1 << 28];
-
-            let mut dest_len = dest_vec.len() as c_uint;
-            let dest = dest_vec.as_mut_ptr();
-
             let source = input.as_ptr();
             let source_len = input.len() as _;
 
-            let err = unsafe { decompress_c(dest, &mut dest_len, source, source_len) };
+            let (err, dest_vec) =
+                unsafe { decompress_c_with_capacity(1 << 28, source, source_len) };
 
             if err != 0 {
                 panic!("error {err}");
             }
-
-            dest_vec.truncate(dest_len as usize);
 
             drop(dest_vec)
         }
@@ -34,21 +26,15 @@ fn main() {
             let path = it.next().unwrap();
             let input = std::fs::read(&path).unwrap();
 
-            let mut dest_vec = vec![0u8; 1 << 28];
-
-            let mut dest_len = dest_vec.len() as std::ffi::c_uint;
-            let dest = dest_vec.as_mut_ptr();
-
             let source = input.as_ptr();
             let source_len = input.len() as _;
 
-            let err = unsafe { decompress_rs(dest, &mut dest_len, source, source_len) };
+            let (err, dest_vec) =
+                unsafe { decompress_rs_with_capacity(1 << 28, source, source_len) };
 
             if err != 0 {
                 panic!("error {err}");
             }
-
-            dest_vec.truncate(dest_len as usize);
 
             drop(dest_vec)
         }

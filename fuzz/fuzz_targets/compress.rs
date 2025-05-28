@@ -14,18 +14,14 @@ fuzz_target!(|data: String| {
 
     assert_eq!(error, BZ_OK);
 
-    let mut output = [0u8; 1 << 10];
-    let mut output_len = output.len() as _;
-    let error = unsafe {
-        test_libbz2_rs_sys::decompress_rs(
-            output.as_mut_ptr(),
-            &mut output_len,
+    let (error, output) = unsafe {
+        test_libbz2_rs_sys::decompress_rs_with_capacity(
+            1 << 10,
             deflated.as_ptr(),
             deflated.len() as _,
         )
     };
     assert_eq!(error, BZ_OK);
-    let output = &output[..output_len as usize];
 
     if output != data.as_bytes() {
         let path = std::env::temp_dir().join("compressed.txt");

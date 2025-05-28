@@ -3,21 +3,15 @@ use libbz2_rs_sys::BZ_OK;
 use libfuzzer_sys::fuzz_target;
 
 fn decompress_help(input: &[u8]) -> Vec<u8> {
-    let mut dest_vec = vec![0u8; 1 << 16];
-
-    let mut dest_len = dest_vec.len() as _;
-    let dest = dest_vec.as_mut_ptr();
-
     let source = input.as_ptr();
     let source_len = input.len() as _;
 
-    let err = unsafe { test_libbz2_rs_sys::decompress_rs(dest, &mut dest_len, source, source_len) };
+    let (err, dest_vec) =
+        unsafe { test_libbz2_rs_sys::decompress_rs_with_capacity(1 << 16, source, source_len) };
 
     if err != BZ_OK {
         panic!("error {:?}", err);
     }
-
-    dest_vec.truncate(dest_len as usize);
 
     dest_vec
 }
