@@ -141,19 +141,8 @@ fn compress_chunked_input() {
     let chunked = compress_rs_chunked_input(&mut dest_chunked, SAMPLE1_REF, 256).unwrap();
 
     if !cfg!(miri) {
-        let mut dest = vec![0; 1 << 18];
-        let mut dest_len = dest.len() as _;
-        let err = unsafe {
-            compress_c(
-                dest.as_mut_ptr(),
-                &mut dest_len,
-                SAMPLE1_REF.as_ptr(),
-                SAMPLE1_REF.len() as _,
-                9,
-            )
-        };
+        let (err, dest) = unsafe { compress_c(SAMPLE1_REF.as_ptr(), SAMPLE1_REF.len() as _, 9) };
         assert_eq!(err, 0);
-        dest.truncate(dest_len as usize);
 
         assert_eq!(chunked.len(), dest.len());
         assert_eq!(chunked, dest);
@@ -294,19 +283,8 @@ fn compress_chunked_output() {
     let chunked = compress_rs_chunked_input(&mut dest_chunked, SAMPLE1_REF, 256).unwrap();
 
     if !cfg!(miri) {
-        let mut dest = vec![0; 1 << 18];
-        let mut dest_len = dest.len() as _;
-        let err = unsafe {
-            compress_c(
-                dest.as_mut_ptr(),
-                &mut dest_len,
-                SAMPLE1_REF.as_ptr(),
-                SAMPLE1_REF.len() as _,
-                9,
-            )
-        };
+        let (err, dest) = unsafe { compress_c(SAMPLE1_REF.as_ptr(), SAMPLE1_REF.len() as _, 9) };
         assert_eq!(err, 0);
-        dest.truncate(dest_len as usize);
 
         assert_eq!(chunked.len(), dest.len());
         assert_eq!(chunked, dest);
@@ -317,20 +295,9 @@ fn compress_chunked_output() {
 fn fuzzer_short() {
     const INPUT: &[u8] = &[0, 0, 67, 0, 67, 0, 0, 5, 0, 0];
 
-    let mut dest = [0u8; 256];
-    let mut len = dest.len() as u32;
-    unsafe {
-        compress_c(
-            dest.as_mut_ptr(),
-            &mut len,
-            INPUT.as_ptr(),
-            INPUT.len() as u32,
-            1,
-        );
-    }
-
-    let input = &dest[..len as usize];
+    let (err, input) = unsafe { compress_c(INPUT.as_ptr(), INPUT.len() as u32, 1) };
+    assert_eq!(err, 0);
 
     let mut dest_chunked = vec![0; 1 << 18];
-    let _ = decompress_rs_chunked_input(&mut dest_chunked, input, 6).unwrap();
+    let _ = decompress_rs_chunked_input(&mut dest_chunked, &input, 6).unwrap();
 }

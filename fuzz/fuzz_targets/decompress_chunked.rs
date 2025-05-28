@@ -35,7 +35,7 @@ fn compress_c(data: &[u8]) -> Vec<u8> {
                 output.resize(output.len() + add_space as usize, 0);
 
                 // If resize() reallocates, it may have moved in memory.
-                stream.next_out = output.as_mut_ptr().cast::<i8>().wrapping_add(used as usize);
+                stream.next_out = output.as_mut_ptr().cast::<i8>().wrapping_add(used);
                 stream.avail_out += add_space;
 
                 continue;
