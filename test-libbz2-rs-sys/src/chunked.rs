@@ -1,4 +1,4 @@
-use crate::{compress_c, decompress_c, SAMPLE1_BZ2, SAMPLE1_REF};
+use crate::{compress_c, decompress_c, decompress_c_with_capacity, SAMPLE1_BZ2, SAMPLE1_REF};
 
 fn decompress_rs_chunked_input<'a>(
     dest: &'a mut [u8],
@@ -55,18 +55,10 @@ fn decompress_chunked_input() {
     let chunked = decompress_rs_chunked_input(&mut dest_chunked, SAMPLE1_BZ2, 1).unwrap();
 
     if !cfg!(miri) {
-        let mut dest = vec![0; 1 << 18];
-        let mut dest_len = dest.len() as _;
-        let err = unsafe {
-            decompress_c(
-                dest.as_mut_ptr(),
-                &mut dest_len,
-                SAMPLE1_BZ2.as_ptr(),
-                SAMPLE1_BZ2.len() as _,
-            )
+        let (err, dest) = unsafe {
+            decompress_c_with_capacity(1 << 18, SAMPLE1_BZ2.as_ptr(), SAMPLE1_BZ2.len() as _)
         };
         assert_eq!(err, 0);
-        dest.truncate(dest_len as usize);
 
         assert_eq!(chunked.len(), dest.len());
         assert_eq!(chunked, dest);
@@ -201,18 +193,8 @@ fn decompress_rs_chunked_output<'a>(
 
 #[test]
 fn decompress_chunked_output() {
-    let mut dest = vec![0; 1 << 18];
-    let mut dest_len = dest.len() as _;
-    let err = unsafe {
-        decompress_c(
-            dest.as_mut_ptr(),
-            &mut dest_len,
-            SAMPLE1_BZ2.as_ptr(),
-            SAMPLE1_BZ2.len() as _,
-        )
-    };
+    let (err, dest) = unsafe { decompress_c(SAMPLE1_BZ2.as_ptr(), SAMPLE1_BZ2.len() as _) };
     assert_eq!(err, 0);
-    dest.truncate(dest_len as usize);
 
     let mut dest_chunked = vec![0; 1 << 18];
     let chunked = decompress_rs_chunked_input(&mut dest_chunked, SAMPLE1_BZ2, 1).unwrap();
