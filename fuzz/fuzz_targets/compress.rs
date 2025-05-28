@@ -3,13 +3,9 @@ use libbz2_rs_sys::BZ_OK;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: String| {
-    let length = 8 * 1024;
-    let mut deflated = vec![0; length as usize];
-    let mut length = length as _;
-    let error = unsafe {
-        test_libbz2_rs_sys::compress_rs(
-            deflated.as_mut_ptr().cast(),
-            &mut length,
+    let (error, deflated) = unsafe {
+        test_libbz2_rs_sys::compress_rs_with_capacity(
+            4096,
             data.as_ptr().cast(),
             data.len() as _,
             9,
@@ -17,8 +13,6 @@ fuzz_target!(|data: String| {
     };
 
     assert_eq!(error, BZ_OK);
-
-    deflated.truncate(length as usize);
 
     let mut output = [0u8; 1 << 10];
     let mut output_len = output.len() as _;

@@ -74,22 +74,7 @@ macro_rules! assert_eq_compress {
     ($input:literal) => {
         let input = include_bytes!($input);
 
-        assert_eq_rs_c!({
-            let mut dest = vec![0; 2 * input.len()];
-            let mut dest_len = dest.len() as core::ffi::c_uint;
-
-            compress(
-                dest.as_mut_ptr(),
-                &mut dest_len,
-                input.as_ptr(),
-                input.len() as core::ffi::c_uint,
-                9,
-            );
-
-            dest.truncate(dest_len as usize);
-
-            dest
-        });
+        assert_eq_rs_c!({ compress(input.as_ptr(), input.len() as core::ffi::c_uint, 9) });
     };
 }
 
@@ -371,13 +356,20 @@ pub unsafe fn decompress_rs(
     }
 }
 
-pub unsafe fn compress_c(
-    dest: *mut u8,
-    dest_len: *mut libc::c_uint,
+unsafe fn compress_c(
     source: *const u8,
     source_len: libc::c_uint,
     blockSize100k: i32,
-) -> i32 {
+) -> (i32, Vec<u8>) {
+    compress_c_with_capacity(1024, source, source_len, blockSize100k)
+}
+
+pub unsafe fn compress_c_with_capacity(
+    capacity: usize,
+    source: *const u8,
+    source_len: libc::c_uint,
+    blockSize100k: i32,
+) -> (i32, Vec<u8>) {
     use bzip2_sys::*;
 
     let mut strm: bz_stream = bz_stream {
@@ -394,49 +386,72 @@ pub unsafe fn compress_c(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    if dest.is_null() || dest_len.is_null() || source.is_null() {
-        return -2 as libc::c_int;
-    }
+
+    let mut dest = vec![0u8; capacity];
+
     strm.bzalloc = None;
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
         let ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
         if ret != 0 as libc::c_int {
-            return ret;
+            return (ret, vec![]);
         }
-        strm.next_in = source as *mut libc::c_char;
-        strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
-        strm.avail_out = *dest_len;
-        match BZ2_bzCompress(&mut strm, 2) {
-            BZ_FINISH_OK => {
-                BZ2_bzCompressEnd(&mut strm);
+        strm.avail_out = dest.len() as _;
+        strm.next_in = source as *mut libc::c_char;
+        strm.next_out = dest.as_mut_ptr().cast::<core::ffi::c_char>();
+        let ret = loop {
+            match BZ2_bzCompress(&mut strm, 2) {
+                BZ_FINISH_OK => {
+                    let used = dest.len() - strm.avail_out as usize;
+                    // The dest buffer is full.
+                    let add_space: u32 = Ord::max(1024, dest.len().try_into().unwrap());
+                    dest.resize(dest.len() + add_space as usize, 0);
 
-                BZ_OUTBUFF_FULL
-            }
-            BZ_STREAM_END => {
-                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-                BZ2_bzCompressEnd(&mut strm);
+                    // If resize() reallocates, it may have moved in memory.
+                    strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                    strm.avail_out += add_space;
 
-                BZ_OK
-            }
-            ret => {
-                BZ2_bzCompressEnd(&mut strm);
+                    continue;
+                }
+                BZ_STREAM_END => {
+                    BZ2_bzCompressEnd(&mut strm);
 
-                ret
+                    break BZ_OK;
+                }
+                ret => {
+                    BZ2_bzCompressEnd(&mut strm);
+
+                    break ret;
+                }
             }
-        }
+        };
+
+        dest.truncate(
+            ((u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32))
+                .try_into()
+                .unwrap(),
+        );
+
+        (ret, dest)
     }
 }
 
-pub unsafe fn compress_rs(
-    dest: *mut u8,
-    dest_len: *mut libc::c_uint,
+unsafe fn compress_rs(
     source: *const u8,
     source_len: libc::c_uint,
     blockSize100k: i32,
-) -> i32 {
+) -> (i32, Vec<u8>) {
+    compress_rs_with_capacity(1024, source, source_len, blockSize100k)
+}
+
+pub unsafe fn compress_rs_with_capacity(
+    capacity: usize,
+    source: *const u8,
+    source_len: libc::c_uint,
+    blockSize100k: i32,
+) -> (i32, Vec<u8>) {
     use libbz2_rs_sys::*;
 
     let mut strm: bz_stream = bz_stream {
@@ -453,39 +468,55 @@ pub unsafe fn compress_rs(
         bzfree: None,
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
-    if dest.is_null() || dest_len.is_null() || source.is_null() {
-        return -2 as libc::c_int;
-    }
+
+    let mut dest = vec![0u8; capacity];
+
     strm.bzalloc = None;
     strm.bzfree = None;
     strm.opaque = std::ptr::null_mut::<libc::c_void>();
     unsafe {
         let ret = BZ2_bzCompressInit(&mut strm, blockSize100k, 0, 30);
         if ret != 0 as libc::c_int {
-            return ret;
+            return (ret, vec![]);
         }
-        strm.next_in = source as *mut libc::c_char;
-        strm.next_out = dest.cast::<core::ffi::c_char>();
         strm.avail_in = source_len;
-        strm.avail_out = *dest_len;
-        match BZ2_bzCompress(&mut strm, 2) {
-            BZ_FINISH_OK => {
-                BZ2_bzCompressEnd(&mut strm);
+        strm.avail_out = dest.len() as _;
+        strm.next_in = source as *mut libc::c_char;
+        strm.next_out = dest.as_mut_ptr().cast::<core::ffi::c_char>();
+        let ret = loop {
+            match BZ2_bzCompress(&mut strm, 2) {
+                BZ_FINISH_OK => {
+                    let used = dest.len() - strm.avail_out as usize;
+                    // The dest buffer is full.
+                    let add_space: u32 = Ord::max(1024, dest.len().try_into().unwrap());
+                    dest.resize(dest.len() + add_space as usize, 0);
 
-                BZ_OUTBUFF_FULL
-            }
-            BZ_STREAM_END => {
-                *dest_len = (*dest_len).wrapping_sub(strm.avail_out);
-                BZ2_bzCompressEnd(&mut strm);
+                    // If resize() reallocates, it may have moved in memory.
+                    strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                    strm.avail_out += add_space;
 
-                BZ_OK
-            }
-            ret => {
-                BZ2_bzCompressEnd(&mut strm);
+                    continue;
+                }
+                BZ_STREAM_END => {
+                    BZ2_bzCompressEnd(&mut strm);
 
-                ret
+                    break BZ_OK;
+                }
+                ret => {
+                    BZ2_bzCompressEnd(&mut strm);
+
+                    break ret;
+                }
             }
-        }
+        };
+
+        dest.truncate(
+            ((u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32))
+                .try_into()
+                .unwrap(),
+        );
+
+        (ret, dest)
     }
 }
 
@@ -1312,23 +1343,11 @@ mod high_level_interface {
 
         assert_eq!(bzerror, BZ_OK);
 
-        let mut expected = vec![0u8; 256 * 1024];
-        let mut expected_len = expected.len() as _;
-        let err = unsafe {
-            compress_c(
-                expected.as_mut_ptr(),
-                &mut expected_len,
-                SAMPLE1_BZ2.as_ptr(),
-                SAMPLE1_BZ2.len() as _,
-                9,
-            )
-        };
+        let (err, expected) =
+            unsafe { compress_c(SAMPLE1_BZ2.as_ptr(), SAMPLE1_BZ2.len() as _, 9) };
         assert_eq!(err, 0);
 
-        assert_eq!(
-            std::fs::read(p).unwrap(),
-            &expected[..expected_len as usize]
-        );
+        assert_eq!(std::fs::read(p).unwrap(), expected,);
     }
 
     #[test]

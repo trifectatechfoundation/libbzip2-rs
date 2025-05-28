@@ -23,22 +23,11 @@ fn decompress_help(input: &[u8]) -> Vec<u8> {
 }
 
 fuzz_target!(|data: Vec<u8>| {
-    let mut length = 8 * 1024;
-    let mut deflated = vec![0; length as usize];
-
-    let error = unsafe {
-        test_libbz2_rs_sys::compress_c(
-            deflated.as_mut_ptr().cast(),
-            &mut length,
-            data.as_ptr().cast(),
-            data.len() as _,
-            9,
-        )
+    let (error, deflated) = unsafe {
+        test_libbz2_rs_sys::compress_c_with_capacity(4096, data.as_ptr().cast(), data.len() as _, 9)
     };
 
     assert_eq!(error, BZ_OK);
-
-    deflated.truncate(length as _);
 
     let output = decompress_help(&deflated);
 
