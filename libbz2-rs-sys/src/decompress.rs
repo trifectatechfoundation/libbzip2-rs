@@ -1019,7 +1019,7 @@ pub(crate) fn decompress(
 
                             let mut pos: [u8; 6] = [0, 1, 2, 3, 4, 5];
                             for i in 0..usize::from(nSelectors) {
-                                pos[..=usize::from(s.selectorMtf[i])].rotate_right(1);
+                                rotate_right_1(&mut pos[..=usize::from(s.selectorMtf[i])]);
                                 s.selector[i] = pos[0];
                             }
 
@@ -1232,7 +1232,7 @@ fn initialize_mtfa(mtfa: &mut [u8; 4096], mtfbase: &mut [u16; 16], nextSym: u16)
         // avoid general case expense
         let pp = usize::from(mtfbase[0]);
         let uc = mtfa[pp + nn];
-        mtfa[pp..][..=nn].rotate_right(1);
+        rotate_right_1(&mut mtfa[pp..][..=nn]);
 
         uc
     } else {
@@ -1267,4 +1267,11 @@ fn initialize_mtfa(mtfa: &mut [u8; 4096], mtfbase: &mut [u16; 16], nextSym: u16)
 
         uc
     }
+}
+
+fn rotate_right_1(slice: &mut [u8]) {
+    let Some(&last) = slice.last() else { return };
+
+    slice.copy_within(0..slice.len() - 1, 1);
+    slice[0] = last;
 }
