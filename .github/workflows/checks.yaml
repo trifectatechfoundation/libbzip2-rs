@@ -220,7 +220,7 @@ jobs:
         run: |
           cargo fuzz build --no-default-features --features="${{ matrix.features }}"
           for target in $(cargo fuzz list); do
-            if [ "$target" = "uncompress2" ]; then
+            if [ "$target" = "decompress_chunked" ]; then
               features="${{ matrix.features }} disable-checksum"
             else
               features="${{ matrix.features }}"
@@ -237,7 +237,7 @@ jobs:
           - fuzz_target: decompress_chunked
             corpus: "bzip2-files/compressed"
             features: '--no-default-features --features="disable-checksum"'
-          - fuzz_target: compress
+          - fuzz_target: compress_then_decompress
             corpus: ""
             features: ''
     steps:
