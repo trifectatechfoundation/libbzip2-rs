@@ -99,18 +99,10 @@ fuzz_target!(|fuzz_data: &[u8]| -> Corpus {
                     // stop processing
                     return invalid_input;
                 }
-                BZ_FLUSH_OK => {
-                    panic!("BZ_FLUSH_OK");
-                }
-                BZ_RUN_OK => {
-                    panic!("BZ_RUN_OK");
-                }
-                BZ_FINISH_OK => {
-                    panic!("BZ_FINISH_OK");
-                }
-                BZ_OUTBUFF_FULL => {
-                    panic!("BZ_OUTBUFF_FULL");
-                }
+                BZ_FLUSH_OK => panic!("BZ_FLUSH_OK"),
+                BZ_RUN_OK => panic!("BZ_RUN_OK"),
+                BZ_FINISH_OK => panic!("BZ_FINISH_OK"),
+                BZ_OUTBUFF_FULL => panic!("BZ_OUTBUFF_FULL"),
                 err => panic!("{err}"),
             }
         }
