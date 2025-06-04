@@ -11,8 +11,8 @@ use libbz2_rs_sys::{
 
 use libfuzzer_sys::fuzz_target;
 
+/// compress the data with the stock C bzip2
 fn compress_c(data: &[u8], compression_level: u8, work_factor: u8) -> Vec<u8> {
-    // compress the data with the stock C bzip2
 
     // output buffer for compression, will get resized later if needed
     let mut output = vec![0u8; 1024];

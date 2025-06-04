@@ -18,6 +18,7 @@ rust-allocator = ["libbz2-rs-sys/rust-allocator"]
 disable-checksum = ["libbz2-rs-sys/__internal-fuzz-disable-checksum"]
 # actively reject and ignore invalid fuzz inputs during processing
 # this can have negative effects
+# see the README.md for more information
 reject-invalid-in-corpus = [] 
 
 [dependencies.libfuzzer-sys]

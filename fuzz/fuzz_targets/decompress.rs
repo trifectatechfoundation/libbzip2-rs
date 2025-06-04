@@ -12,11 +12,9 @@ fuzz_target!(|fuzz_data: &[u8]| {
         test_libbz2_rs_sys::decompress_rs_with_capacity(1 << 12, fuzz_data.as_ptr(), fuzz_data.len() as _)
     };
 
-    // ignore known edge case with different error result behavior
-    if err_c != -7 && err_rs != -4 {
-        // in the general case, result codes should be identical
-        assert_eq!(err_c, err_rs);
-    }
+    // result codes between the two implementations should be identical
+    // previously found https://github.com/trifectatechfoundation/libbzip2-rs/pull/110
+    assert_eq!(err_c, err_rs);
 
     // if the decompression is successful, the data results should be the same
     if err_c == BZ_OK {
