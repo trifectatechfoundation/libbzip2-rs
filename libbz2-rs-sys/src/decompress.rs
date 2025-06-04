@@ -597,7 +597,7 @@ pub(crate) fn decompress(
             uc = GET_BYTE!(strm, s);
 
             s.origPtr = (s.origPtr << 8) | i32::from(uc);
-            if !(0..10 + 100000 * i32::from(s.blockSize100k)).contains(&s.origPtr) {
+            if !(0..=10 + 100000 * i32::from(s.blockSize100k)).contains(&s.origPtr) {
                 error!(BZ_DATA_ERROR);
             }
 
