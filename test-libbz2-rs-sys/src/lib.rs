@@ -1454,3 +1454,26 @@ mod high_level_interface {
         drop(path_as_cstring);
     }
 }
+
+#[test]
+fn orig_ptr_bounds_check_off_by_1() {
+    // From https://git.radicallyopensecurity.com/ngi/ngicore-zip-linting-and-bzip2-in-rust/-/issues/6
+    //
+    // A bounds check in `decompress.rs` was off-by-one in the rust version.
+    let source: &[u8] = &[
+        0x42, 0x5a, 0x68, 0x32, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0x03, 0x4f, 0x7e, 0x01, 0x01,
+        0x86, 0xa5, 0x00, 0x00,
+    ];
+
+    let (err_c, dest_c) =
+        unsafe { crate::decompress_c_with_capacity(1 << 16, source.as_ptr(), source.len() as _) };
+
+    let (err_rs, dest_rs) =
+        unsafe { crate::decompress_rs_with_capacity(1 << 16, source.as_ptr(), source.len() as _) };
+
+    assert_eq!(err_c, err_rs);
+
+    if err_c == libbz2_rs_sys::BZ_OK {
+        assert_eq!(dest_c, dest_rs);
+    }
+}
