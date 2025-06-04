@@ -234,9 +234,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - fuzz_target: decompress
+          - fuzz_target: decompress_chunked
             corpus: "bzip2-files/compressed"
-            features: '--no-default-features --features="disable-checksum,keep-invalid-in-corpus"'
+            features: '--no-default-features --features="disable-checksum"'
           - fuzz_target: compress
             corpus: ""
             features: ''
