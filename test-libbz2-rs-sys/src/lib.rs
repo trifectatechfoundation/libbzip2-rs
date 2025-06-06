@@ -260,7 +260,8 @@ pub unsafe fn decompress_c_with_capacity(
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
 
-    let mut dest = vec![0u8; capacity];
+    // Deliberately use uninitialized memory for the output.
+    let mut dest = Vec::<u8>::with_capacity(capacity);
 
     strm.bzalloc = None;
     strm.bzfree = None;
@@ -271,7 +272,7 @@ pub unsafe fn decompress_c_with_capacity(
             return (ret, vec![]);
         }
         strm.avail_in = source_len;
-        strm.avail_out = dest.len() as _;
+        strm.avail_out = dest.capacity() as _;
         strm.next_in = source as *mut libc::c_char;
         strm.next_out = dest.as_mut_ptr().cast::<core::ffi::c_char>();
 
@@ -282,10 +283,14 @@ pub unsafe fn decompress_c_with_capacity(
                         BZ2_bzDecompressEnd(&mut strm);
                         break BZ_UNEXPECTED_EOF;
                     } else {
-                        let used = dest.len() - strm.avail_out as usize;
+                        let used = dest.capacity() - strm.avail_out as usize;
+
+                        // We've written this many (initialized!) bytes to the output.
+                        dest.set_len(used);
+
                         // The dest buffer is full.
-                        let add_space: u32 = Ord::max(1024, dest.len().try_into().unwrap());
-                        dest.resize(dest.len() + add_space as usize, 0);
+                        let add_space: u32 = Ord::max(1024, dest.capacity().try_into().unwrap());
+                        dest.reserve(add_space as usize);
 
                         // If resize() reallocates, it may have moved in memory.
                         strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
@@ -305,11 +310,8 @@ pub unsafe fn decompress_c_with_capacity(
             }
         };
 
-        dest.truncate(
-            ((u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32))
-                .try_into()
-                .unwrap(),
-        );
+        let total = (u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32);
+        dest.set_len(usize::try_from(total).unwrap());
 
         (ret, dest)
     }
@@ -341,7 +343,8 @@ pub unsafe fn decompress_rs_with_capacity(
         opaque: std::ptr::null_mut::<libc::c_void>(),
     };
 
-    let mut dest = vec![0u8; capacity];
+    // Deliberately use uninitialized memory for the output.
+    let mut dest = Vec::<u8>::with_capacity(capacity);
 
     strm.bzalloc = None;
     strm.bzfree = None;
@@ -352,7 +355,7 @@ pub unsafe fn decompress_rs_with_capacity(
             return (ret, vec![]);
         }
         strm.avail_in = source_len;
-        strm.avail_out = dest.len() as _;
+        strm.avail_out = dest.capacity() as _;
         strm.next_in = source as *mut libc::c_char;
         strm.next_out = dest.as_mut_ptr().cast::<core::ffi::c_char>();
 
@@ -363,10 +366,14 @@ pub unsafe fn decompress_rs_with_capacity(
                         BZ2_bzDecompressEnd(&mut strm);
                         break BZ_UNEXPECTED_EOF;
                     } else {
-                        let used = dest.len() - strm.avail_out as usize;
+                        let used = dest.capacity() - strm.avail_out as usize;
+
+                        // We've written this many (initialized!) bytes to the output.
+                        dest.set_len(used);
+
                         // The dest buffer is full.
-                        let add_space: u32 = Ord::max(1024, dest.len().try_into().unwrap());
-                        dest.resize(dest.len() + add_space as usize, 0);
+                        let add_space: u32 = Ord::max(1024, dest.capacity().try_into().unwrap());
+                        dest.reserve(add_space as usize);
 
                         // If resize() reallocates, it may have moved in memory.
                         strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
@@ -386,11 +393,8 @@ pub unsafe fn decompress_rs_with_capacity(
             }
         };
 
-        dest.truncate(
-            ((u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32))
-                .try_into()
-                .unwrap(),
-        );
+        let total = (u64::from(strm.total_out_hi32) << 32) + u64::from(strm.total_out_lo32);
+        dest.set_len(usize::try_from(total).unwrap());
 
         (ret, dest)
     }
