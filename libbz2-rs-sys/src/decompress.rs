@@ -1270,8 +1270,20 @@ fn initialize_mtfa(mtfa: &mut [u8; 4096], mtfbase: &mut [u16; 16], nextSym: u16)
 }
 
 fn rotate_right_1(slice: &mut [u8]) {
-    let Some(&last) = slice.last() else { return };
-
-    slice.copy_within(0..slice.len() - 1, 1);
-    slice[0] = last;
+    match slice {
+        [] | [_] => { /* ignore */ }
+        [a, b] => {
+            // The 2-element case is fairly common, and because we already branch on the length,
+            // the check for `len == 2` is very cheap.
+            //
+            // On x86_64 the `rol` instruction is used to swap the bytes with just 1 instruction.
+            // See https://godbolt.org/z/385K7qs91
+            core::mem::swap(a, b)
+        }
+        [.., last] => {
+            let last = *last;
+            slice.copy_within(0..slice.len() - 1, 1);
+            slice[0] = last;
+        }
+    }
 }
