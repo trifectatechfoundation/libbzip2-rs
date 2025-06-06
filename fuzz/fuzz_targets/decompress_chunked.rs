@@ -46,10 +46,13 @@ fuzz_target!(|fuzz_data: &[u8]| -> Corpus {
         Corpus::Keep
     };
 
-    // initialize output buffer, resizing will happen later if needed
-    // using the input length is just a quick heuristic and not otherwise meaningful or necessary
-    let mut output = vec![0u8; fuzz_data.len()];
-    let output_len = output.len() as _;
+    // Initialize output buffer, resizing will happen later if needed
+    // using the input length is just a quick heuristic and not otherwise meaningful or necessary.
+    //
+    // Deliberately use uninitialized memory for the output, to ensure we never
+    // read/use uninitialized data.
+    let mut output = Vec::<u8>::with_capacity(fuzz_data.len());
+    let output_len = output.capacity() as _;
 
     // set output buffer in decompression context
     stream.next_out = output.as_mut_ptr().cast::<core::ffi::c_char>();
@@ -73,10 +76,14 @@ fuzz_target!(|fuzz_data: &[u8]| -> Corpus {
                     // there is still input from this chunk left to process but no more output buffer
                     // this means we have to increase the output buffer and retry the decompress
                     if stream.avail_in > 0 && stream.avail_out == 0 {
-                        let used = output.len() - stream.avail_out as usize;
+                        let used = output.capacity() - stream.avail_out as usize;
+
+                        // Safety: we've written this many (initialized!) bytes to the output.
+                        unsafe { output.set_len(used) };
+
                         // The dest buffer is full, resize it
-                        let add_space: u32 = Ord::max(4096, output.len().try_into().unwrap());
-                        output.resize(output.len() + add_space as usize, 0);
+                        let add_space: u32 = Ord::max(4096, output.capacity().try_into().unwrap());
+                        output.reserve(add_space as usize);
 
                         // If resize() reallocates, it may have moved in memory
                         stream.next_out = output.as_mut_ptr().cast::<i8>().wrapping_add(used);
@@ -107,6 +114,12 @@ fuzz_target!(|fuzz_data: &[u8]| -> Corpus {
             }
         }
     }
+
+    let total = u64::from(stream.total_out_hi32) << 32 | u64::from(stream.total_out_lo32);
+    unsafe { output.set_len(usize::try_from(total).unwrap()) };
+
+    // Just check that this byte is in fact initialized.
+    std::hint::black_box(output.last() == Some(&0));
 
     unsafe {
         // clean up state, should always succeed
