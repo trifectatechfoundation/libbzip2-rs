@@ -13,17 +13,16 @@ use libfuzzer_sys::fuzz_target;
 
 /// compress the data with the stock C bzip2
 fn compress_c(data: &[u8], compression_level: u8, work_factor: u8) -> Vec<u8> {
-
     // output buffer for compression, will get resized later if needed
-    let mut output = vec![0u8; 1024];
+    let mut output = Vec::<u8>::with_capacity(1024);
 
     let mut stream = libbz2_rs_sys::bz_stream {
         next_in: data.as_ptr() as *mut _,
         avail_in: data.len() as _,
         total_in_lo32: 0,
         total_in_hi32: 0,
+        avail_out: output.capacity() as _,
         next_out: output.as_mut_ptr() as *mut _,
-        avail_out: output.len() as _,
         total_out_lo32: 0,
         total_out_hi32: 0,
         state: std::ptr::null_mut(),
@@ -46,10 +45,14 @@ fn compress_c(data: &[u8], compression_level: u8, work_factor: u8) -> Vec<u8> {
     let error = loop {
         match unsafe { libbz2_rs_sys::BZ2_bzCompress(&mut stream, BZ_FINISH) } {
             BZ_FINISH_OK => {
-                let used = output.len() - stream.avail_out as usize;
+                let used = output.capacity() - stream.avail_out as usize;
+
+                // Safety: we've written this many (initialized!) bytes to the output.
+                unsafe { output.set_len(used) };
+
                 // The output buffer is full, resize it
-                let add_space: u32 = Ord::max(1024, output.len().try_into().unwrap());
-                output.resize(output.len() + add_space as usize, 0);
+                let add_space: u32 = Ord::max(1024, output.capacity().try_into().unwrap());
+                output.reserve(add_space as usize);
 
                 // If resize() reallocates, it may have moved in memory
                 stream.next_out = output.as_mut_ptr().cast::<i8>().wrapping_add(used);
@@ -70,11 +73,11 @@ fn compress_c(data: &[u8], compression_level: u8, work_factor: u8) -> Vec<u8> {
     assert_eq!(error, BZ_OK);
 
     // truncate the output buffer down to the actual number of compressed bytes
-    output.truncate(
-        ((u64::from(stream.total_out_hi32) << 32) + u64::from(stream.total_out_lo32))
-            .try_into()
-            .unwrap(),
-    );
+    let total = u64::from(stream.total_out_hi32) << 32 | u64::from(stream.total_out_lo32);
+    unsafe { output.set_len(usize::try_from(total).unwrap()) };
+
+    // Just check that this byte is in fact initialized.
+    std::hint::black_box(output.last() == Some(&0));
 
     unsafe {
         // cleanup, should always succeed
