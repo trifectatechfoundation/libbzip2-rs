@@ -225,14 +225,10 @@ fn fallbackSort(
     let mut ftab: [i32; 257] = [0; 257];
     let mut ftabCopy: [i32; 256] = [0; 256];
     let mut H: i32;
-    let mut i: i32;
-    let mut j: i32;
     let mut k: i32;
     let mut l: i32;
-    let mut r: i32;
     let mut cc: i32;
     let mut cc1: i32;
-    let mut nNotDone: i32;
 
     /*--
        Initial 1-char radix sort to generate
@@ -287,21 +283,20 @@ fn fallbackSort(
         if verb >= 4 {
             debug_log!("        depth {:>6} has ", H);
         }
-        j = 0;
-        i = 0;
-        while i < nblock {
+        let mut j = 0;
+        for (i, x) in fmap[..nblock as usize].iter().enumerate() {
             if ISSET_BH!(i) {
                 j = i;
             }
-            k = fmap[i as usize].wrapping_sub(H as c_uint) as i32;
+            k = x.wrapping_sub(H as c_uint) as i32;
             if k < 0 {
                 k += nblock;
             }
             arr2.eclass()[k as usize] = j as u32;
-            i += 1;
         }
-        nNotDone = 0;
-        r = -1;
+
+        let mut nNotDone = 0;
+        let mut r = -1;
         loop {
             /*-- find the next non-singleton bucket --*/
             k = r + 1;
