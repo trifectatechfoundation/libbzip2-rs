@@ -125,30 +125,32 @@ fn fallbackQSort3(fmap: &mut [u32], eclass: &[u32], loSt: i32, hiSt: i32) {
 
         loop {
             while unLo <= unHi {
-                match eclass[fmap[unLo as usize] as usize].cmp(&med) {
-                    Ordering::Greater => break,
-                    Ordering::Equal => {
-                        fmap.swap(unLo as usize, ltLo as usize);
-                        ltLo += 1;
-                        unLo += 1;
-                    }
-                    Ordering::Less => {
-                        unLo += 1;
-                    }
+                let a = eclass[fmap[unLo as usize] as usize];
+                let b = med;
+
+                if a > b {
+                    break;
+                } else if a == b {
+                    fmap.swap(unLo as usize, ltLo as usize);
+                    ltLo += 1;
+                    unLo += 1;
+                } else {
+                    unLo += 1;
                 }
             }
 
             while unLo <= unHi {
-                match eclass[fmap[unHi as usize] as usize].cmp(&med) {
-                    Ordering::Less => break,
-                    Ordering::Equal => {
-                        fmap.swap(unHi as usize, gtHi as usize);
-                        gtHi -= 1;
-                        unHi -= 1;
-                    }
-                    Ordering::Greater => {
-                        unHi -= 1;
-                    }
+                let a = eclass[fmap[unHi as usize] as usize];
+                let b = med;
+
+                if a < b {
+                    break;
+                } else if a == b {
+                    fmap.swap(unHi as usize, gtHi as usize);
+                    gtHi -= 1;
+                    unHi -= 1;
+                } else {
+                    unHi -= 1;
                 }
             }
 
