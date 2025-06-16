@@ -45,7 +45,9 @@ jobs:
       - name: cargo build
         run: |
           . "$HOME/.cargo/env"
-          RUSTFLAGS="-Cllvm-args=-enable-dfa-jump-thread" cargo build --target ${{matrix.target}} -p test-libbz2-rs-sys --release --examples
+          rustc -Vv
+          clang --version
+          CC="clang" RUSTFLAGS="-Cllvm-args=-enable-dfa-jump-thread" cargo build --target ${{matrix.target}} -p test-libbz2-rs-sys --release --examples
           cp target/${{matrix.target}}/release/examples/decompress .
           cp target/${{matrix.target}}/release/examples/compress .
       - name: Benchmark
