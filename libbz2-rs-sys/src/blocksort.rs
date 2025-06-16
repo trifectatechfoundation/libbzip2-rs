@@ -229,8 +229,6 @@ fn fallbackSort(
     let mut H: i32;
     let mut k: i32;
     let mut l: i32;
-    let mut cc: i32;
-    let mut cc1: i32;
 
     /*--
        Initial 1-char radix sort to generate
@@ -339,9 +337,9 @@ fn fallbackSort(
                 fallbackQSort3(fmap, arr2.eclass(), l, r);
 
                 /*-- scan bucket and generate header bits-- */
-                cc = -1;
+                let mut cc = -1;
                 for i in l..=r {
-                    cc1 = arr2.eclass()[fmap[i as usize] as usize] as i32;
+                    let cc1 = arr2.eclass()[fmap[i as usize] as usize] as i32;
                     if cc != cc1 {
                         SET_BH!(i);
                         cc = cc1;
