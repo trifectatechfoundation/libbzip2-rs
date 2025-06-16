@@ -338,10 +338,10 @@ fn fallbackSort(
 
                 /*-- scan bucket and generate header bits-- */
                 let mut cc = -1;
-                for i in l..=r {
-                    let cc1 = arr2.eclass()[fmap[i as usize] as usize] as i32;
+                for (i, x) in fmap[l as usize..=r as usize].iter().enumerate() {
+                    let cc1 = arr2.eclass()[*x as usize] as i32;
                     if cc != cc1 {
-                        SET_BH!(i);
+                        SET_BH!(l + i as i32);
                         cc = cc1;
                     }
                 }
