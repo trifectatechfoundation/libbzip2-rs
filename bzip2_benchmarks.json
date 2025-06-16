@@ -22,6 +22,12 @@
             "./compress c 8 silesia-small.tar",
             "./compress c 9 silesia-small.tar"
         ],
+        "compress-rs-small": [
+            "./compress rs 1 tests/input/quick/sample3.ref"
+        ],
+        "compress-c-small": [
+            "./compress c 1 tests/input/quick/sample3.ref"
+        ],
         "decompress-rs": [
             "./decompress rs tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
             "./decompress rs tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
@@ -40,6 +46,9 @@
         ]
     },
     "render-versus-self": {
+        "compression small (c vs rs)": {
+            "level 1": { "measure": "cycles", "before": { "command": "compress-c-small", "index": 0 }, "after": { "command": "compress-rs-small", "index": 0 } }
+        },
         "compression (c vs rs)": {
             "level 1": { "measure": "cycles", "before": { "command": "compress-c", "index": 0 }, "after": { "command": "compress-rs", "index": 0 } },
             "level 2": { "measure": "cycles", "before": { "command": "compress-c", "index": 1 }, "after": { "command": "compress-rs", "index": 1 } },
@@ -61,6 +70,13 @@
         }
     },
     "render-versus-other": {
+        "compression small (rs, other versus self)": {
+            "measure": "cycles",
+            "command": "compress-rs",
+            "rows": {
+                "level 1": 0
+            }
+        },
         "compression (rs, other versus self)": {
             "measure": "cycles",
             "command": "compress-rs",
