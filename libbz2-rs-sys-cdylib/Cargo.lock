@@ -4,14 +4,14 @@ version = 3
 
 [[package]]
 name = "libbz2-rs-sys"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "libbz2-rs-sys-cdylib"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libbz2-rs-sys",
  "libc",

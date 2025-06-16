@@ -60,14 +60,14 @@ checksum = "486f806e73c5707928240ddc295403b1b93c96a02038563881c4a2fd84b81ac4"
 
 [[package]]
 name = "libbz2-rs-sys"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "libbzip2-rs"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crc32fast",
  "libbz2-rs-sys",
@@ -133,7 +133,7 @@ dependencies = [
 
 [[package]]
 name = "test-libbz2-rs-sys"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bzip2-sys",
  "libbz2-rs-sys",

@@ -1,6 +1,6 @@
 [package]
 name = "libbz2-rs-sys-cdylib"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "bzip2-1.0.6"
 repository = "https://github.com/trifectatechfoundation/libbzip2-rs"
@@ -24,7 +24,7 @@ semver-prefix = ["libbz2-rs-sys/semver-prefix"] # prefix all symbols in a semver
 capi = []
 
 [dependencies]
-libbz2-rs-sys = { version = "0.2.0", path = "../libbz2-rs-sys", default-features = false, features = ["c-allocator", "export-symbols"] }
+libbz2-rs-sys = { version = "0.2.1", path = "../libbz2-rs-sys", default-features = false, features = ["c-allocator", "export-symbols"] }
 libc = "0.2"
 
 [package.metadata.capi.library]
