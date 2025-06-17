@@ -225,7 +225,7 @@ jobs:
             else
               features="${{ matrix.features }}"
             fi
-            RUST_BACKTRACE=1 cargo fuzz run --no-default-features --features="$features" $target -- -max_total_time=10
+            RUST_BACKTRACE=1 cargo fuzz run --jobs 4 --no-default-features --features="$features" $target -- -max_total_time=10
           done
 
   fuzz-code-coverage:
@@ -265,7 +265,7 @@ jobs:
           # prevents `cargo fuzz coverage` from rebuilding everything
           RUSTFLAGS: "-C instrument-coverage"
         run: |
-          cargo fuzz run ${{matrix.features}} ${{matrix.fuzz_target}} ${{matrix.corpus}} -- -max_total_time=20
+          cargo fuzz run --jobs 4 ${{matrix.features}} ${{matrix.fuzz_target}} ${{matrix.corpus}} -- -max_total_time=20
       - name: Fuzz codecov
         run: |
           cargo fuzz coverage ${{matrix.features}} ${{matrix.fuzz_target}} ${{matrix.corpus}}
