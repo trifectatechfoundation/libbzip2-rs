@@ -473,4 +473,4 @@ jobs:
           git clone https://github.com/trifectatechfoundation/bzip2-rs.git
           cd bzip2-rs
           sed -i '/^\[dependencies\.libbz2-rs-sys\]/,/^$/ s/^version = .*/path = "..\/libbzip2-rs\/libbz2-rs-sys"/' Cargo.toml
-          cargo test --no-default-features --features="libbz2-rs-sys"
+          cargo test # libbz2-rs-sys is the default now
