@@ -1570,7 +1570,7 @@ mod compress_command {
 
         let output = match cmd.output() {
             Ok(output) => output,
-            Err(err) => panic!("Running {:?} failed with {err:?}", cmd),
+            Err(err) => panic!("Running {cmd:?} failed with {err:?}"),
         };
 
         assert!(

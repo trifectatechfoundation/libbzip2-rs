@@ -132,7 +132,7 @@ impl core::fmt::Display for EmitError<'_> {
                     self.in_filename.display(),
                 )?;
 
-                writeln!(f, "{}", io_error)?;
+                writeln!(f, "{io_error}")?;
 
                 writeln!(
                     f,
@@ -150,7 +150,7 @@ impl core::fmt::Display for EmitError<'_> {
                     self.in_filename.display(),
                 )?;
 
-                writeln!(f, "{}", io_error)?;
+                writeln!(f, "{io_error}")?;
 
                 writeln!(
                     f,
@@ -211,7 +211,7 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
     };
 
     let mut input_bitstream = BitStream::open_read_stream(input_file);
-    eprintln!("{}: searching for block boundaries ...", progname);
+    eprintln!("{progname}: searching for block boundaries ...");
 
     let mut bits_read: u64 = 0;
     let mut buff_lo: u32 = 0;
@@ -278,12 +278,12 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
     /*-- identified blocks run from 1 to rbCtr inclusive. --*/
 
     if rb_ctr < 1 {
-        eprintln!("{}: sorry, I couldn't find any block boundaries.", progname);
+        eprintln!("{progname}: sorry, I couldn't find any block boundaries.");
 
         return Err(Error::Fatal);
     }
 
-    eprintln!("{}: splitting into blocks", progname);
+    eprintln!("{progname}: splitting into blocks");
 
     let Ok(input_file) = std::fs::File::options().read(true).open(in_filename) else {
         eprintln!("{}: can't read `{}'", progname, in_filename.display());
@@ -376,7 +376,7 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
         }
     }
 
-    eprintln!("{}: finished", progname);
+    eprintln!("{progname}: finished");
 
     Ok(())
 }
@@ -409,7 +409,7 @@ fn main() -> ExitCode {
                 error,
             };
 
-            eprint!("{}", emit_error);
+            eprint!("{emit_error}");
 
             ExitCode::FAILURE
         }
@@ -435,7 +435,7 @@ mod test {
         };
 
         let mut buf = String::new();
-        write!(&mut buf, "{}", emit_error).unwrap();
+        write!(&mut buf, "{emit_error}").unwrap();
 
         assert_eq!(
             buf,
@@ -470,7 +470,7 @@ mod test {
         };
 
         let mut buf = String::new();
-        write!(&mut buf, "{}", emit_error).unwrap();
+        write!(&mut buf, "{emit_error}").unwrap();
 
         assert_eq!(
             buf,
@@ -504,7 +504,7 @@ mod test {
         };
 
         let mut buf = String::new();
-        write!(&mut buf, "{}", emit_error).unwrap();
+        write!(&mut buf, "{emit_error}").unwrap();
 
         assert_eq!(
             buf,

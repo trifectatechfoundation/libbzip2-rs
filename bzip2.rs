@@ -972,7 +972,7 @@ fn configError() -> ! {
         "\tProbably you can fix this by defining them correctly,\n",
         "\tand recompiling.  Bye!\n",
     );
-    eprint!("{}", MSG);
+    eprint!("{MSG}");
     setExit(3);
     exit(exitValue.load(Ordering::SeqCst));
 }
