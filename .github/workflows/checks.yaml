@@ -213,9 +213,7 @@ jobs:
         with:
           toolchain: nightly
       - name: Install cargo fuzz
-        uses: taiki-e/install-action@56ab7930c591507f833cbaed864d201386d518a8
-        with:
-          tool: cargo-fuzz
+        run: cargo install cargo-fuzz
       - name: Smoke-test fuzz targets
         run: |
           cargo fuzz build --no-default-features --features="${{ matrix.features }}"
@@ -250,10 +248,12 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
-      - name: Install cargo fuzz & rustfilt
-        uses: taiki-e/install-action@56ab7930c591507f833cbaed864d201386d518a8
+      - name: Install rustfilt
+        uses: taiki-e/install-action@a27ef18d36cfa66b0af3a360104621793b41c036 # v2.54.3
         with:
-          tool: cargo-fuzz,rustfilt
+          tool: rustfilt
+      - name: Install cargo fuzz
+        run: cargo install cargo-fuzz
       - name: Download custom decompression corpus
         if: ${{ contains(matrix.corpus, 'bzip2-files') }}
         run: |
