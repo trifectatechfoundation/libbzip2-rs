@@ -31,7 +31,7 @@ extern "C" {
     static mut stdout_handle: *mut FILE;
 }
 
-#[cfg(all(target_os = "windows", target_env = "gnu"))]
+#[cfg(target_os = "windows")]
 extern "C" {
     fn __acrt_iob_func(idx: libc::c_uint) -> *mut FILE;
 }
@@ -43,7 +43,7 @@ macro_rules! STDIN {
     };
 }
 
-#[cfg(all(target_os = "windows", target_env = "gnu"))]
+#[cfg(target_os = "windows")]
 macro_rules! STDIN {
     () => {
         __acrt_iob_func(0)
@@ -57,7 +57,7 @@ macro_rules! STDOUT {
     };
 }
 
-#[cfg(all(target_os = "windows", target_env = "gnu"))]
+#[cfg(target_os = "windows")]
 macro_rules! STDOUT {
     () => {
         __acrt_iob_func(1)
