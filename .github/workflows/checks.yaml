@@ -52,6 +52,10 @@ jobs:
             os: windows-2022
             features: ""
             target: "x86_64-pc-windows-msvc"
+          - rust: stable-x86_64-gnu
+            os: windows-2022
+            features: ""
+            target: "x86_64-pc-windows-gnullvm"
     steps:
       - name: Checkout sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -73,6 +77,12 @@ jobs:
           toolchain: "${{matrix.rust}}"
           targets: "${{ matrix.target }}"
         if: matrix.os == 'windows-2022'
+      - name: install llvm-mingw
+        run: |
+          curl -L -o llvm-mingw.zip https://github.com/mstorsjo/llvm-mingw/releases/download/20250709/llvm-mingw-20250709-ucrt-x86_64.zip
+          unzip llvm-mingw.zip -d llvm-mingw
+          echo "CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER=$(pwd)/llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe" >> $GITHUB_ENV
+        if: matrix.target == 'x86_64-pc-windows-gnullvm'
       - name: target
         run: "rustc -vV | sed -n 's|host: ||p'"
         if: matrix.os != 'windows-2022'
@@ -82,6 +92,8 @@ jobs:
           tool: cargo-llvm-cov,cargo-nextest
       - name: cargo build
         run: cargo build --target ${{matrix.target}} ${{ matrix.features }}
+        env:
+           CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER: "llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe"
       - name: cargo build (no_std)
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --crate-type rlib
         env:
@@ -96,10 +108,25 @@ jobs:
         env:
           RUST_BACKTRACE: 1
       - name: cargo nextest
-        if: matrix.os == 'windows-2022'
+        if: matrix.target == 'x86_64-pc-windows-gnullvm'
+        run: |
+          $env:PATH = "${{ github.workspace }}\llvm-mingw\llvm-mingw-20250709-ucrt-x86_64\bin;" + $env:PATH
+          $env:PATH = "${{ github.workspace }}\llvm-mingw\llvm-mingw-20250709-ucrt-x86_64\lib;" + $env:PATH
+          $env:PATH = "${{ github.workspace }}\llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/x86_64-w64-mingw32/lib;" + $env:PATH
+          # $env:CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER = "llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe"
+          mkdir -Force .cargo
+          echo '[target.x86_64-pc-windows-gnullvm]' > .cargo/config.toml
+          echo 'linker = "llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe"' >> .cargo/config.toml
+          cargo test --target ${{matrix.target}} ${{ matrix.features }} --no-fail-fast
+        env:
+          RUST_BACKTRACE: 1
+          # CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER: "llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe"
+      - name: cargo nextest
+        if: matrix.os == 'windows-2022' && matrix.target != 'x86_64-pc-windows-gnullvm'
         run: cargo nextest run --target ${{matrix.target}} ${{ matrix.features }} --no-fail-fast
         env:
           RUST_BACKTRACE: 1
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_LINKER: "llvm-mingw/llvm-mingw-20250709-ucrt-x86_64/bin/x86_64-w64-mingw32-clang.exe"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         if: matrix.os != 'windows-2022' && matrix.rust == 'stable'
