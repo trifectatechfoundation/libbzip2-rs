@@ -20,14 +20,18 @@ rust-version = "1.82" # MSRV
 
 [workspace.dependencies]
 libc = "0.2"
-libbz2-rs-sys = { path = "libbz2-rs-sys/", default-features = false }
+
+[workspace.dependencies.libbz2-rs-sys]
+path = "libbz2-rs-sys/"
+default-features = false
+version = "0.2.2"
 
 [profile.relwithdebinfo]
 inherits = "release"
 debug = true
 
 [package]
-name = "libbzip2-rs"
+name = "bzip2-cli"
 readme.workspace = true
 description.workspace = true
 version.workspace = true
@@ -37,6 +41,14 @@ repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 rust-version.workspace = true
+
+include = [
+    "bzip2.rs",
+    "bzip2recover.rs",
+    "Cargo.toml",
+    "./README.md",
+    "./LICENSE",
+]
 
 [[bin]]
 name = "bzip2"
