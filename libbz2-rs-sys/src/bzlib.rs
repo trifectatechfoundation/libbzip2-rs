@@ -1335,7 +1335,7 @@ macro_rules! BZ_GET_FAST {
             None => return true,
             Some(&bits) => {
                 $s.tPos = bits;
-                let tmp = ($s.tPos & 0xff) as u8;
+                let tmp = ($s.tPos & 0xff);
                 $s.tPos >>= 8;
                 tmp
             }
@@ -1344,7 +1344,7 @@ macro_rules! BZ_GET_FAST {
 }
 
 fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bool {
-    let mut k1: u8;
+    let mut k1: u32;
     if s.blockRandomised {
         loop {
             /* try to finish existing run */
@@ -1378,48 +1378,48 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
             s.state_out_len = 1;
             k1 = BZ_GET_FAST!(s);
             BZ_RAND_UPD_MASK!(s);
-            k1 ^= BZ_RAND_MASK!(s);
+            k1 ^= BZ_RAND_MASK!(s) as u32;
             s.nblock_used += 1;
             if s.nblock_used == s.save.nblock as i32 + 1 {
                 continue;
             };
-            if k1 != s.k0 {
-                s.k0 = k1;
+            if k1 != s.k0 as u32 {
+                s.k0 = k1 as u8;
                 continue;
             };
 
             s.state_out_len = 2;
             k1 = BZ_GET_FAST!(s);
             BZ_RAND_UPD_MASK!(s);
-            k1 ^= BZ_RAND_MASK!(s);
+            k1 ^= BZ_RAND_MASK!(s) as u32;
             s.nblock_used += 1;
             if s.nblock_used == s.save.nblock as i32 + 1 {
                 continue;
             };
-            if k1 != s.k0 {
-                s.k0 = k1;
+            if k1 != s.k0 as u32 {
+                s.k0 = k1 as u8;
                 continue;
             };
 
             s.state_out_len = 3;
             k1 = BZ_GET_FAST!(s);
             BZ_RAND_UPD_MASK!(s);
-            k1 ^= BZ_RAND_MASK!(s);
+            k1 ^= BZ_RAND_MASK!(s) as u32;
             s.nblock_used += 1;
             if s.nblock_used == s.save.nblock as i32 + 1 {
                 continue;
             };
-            if k1 != s.k0 {
-                s.k0 = k1;
+            if k1 != s.k0 as u32 {
+                s.k0 = k1 as u8;
                 continue;
             };
 
             k1 = BZ_GET_FAST!(s);
             BZ_RAND_UPD_MASK!(s);
-            k1 ^= BZ_RAND_MASK!(s);
+            k1 ^= BZ_RAND_MASK!(s) as u32;
             s.nblock_used += 1;
-            s.state_out_len = k1 as u32 + 4;
-            s.k0 = BZ_GET_FAST!(s);
+            s.state_out_len = k1 + 4;
+            s.k0 = BZ_GET_FAST!(s) as u8;
             BZ_RAND_UPD_MASK!(s);
             s.k0 ^= BZ_RAND_MASK!(s);
             s.nblock_used += 1;
@@ -1427,10 +1427,10 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
     } else {
         /* restore */
         let mut c_calculatedBlockCRC: u32 = s.calculatedBlockCRC;
-        let mut c_state_out_ch: u8 = s.state_out_ch;
+        let mut c_state_out_ch: u32 = s.state_out_ch as u32;
         let mut c_state_out_len: u32 = s.state_out_len;
         let mut c_nblock_used: i32 = s.nblock_used;
-        let mut c_k0: u8 = s.k0;
+        let mut c_k0: u32 = s.k0 as u32;
         let mut c_tPos: u32 = s.tPos;
         let mut cs_next_out: *mut c_char = strm.next_out;
         let mut cs_avail_out: c_uint = strm.avail_out;
@@ -1449,7 +1449,7 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                         // return corrupt if we're past the length of the block
                         return true;
                     }
-                    Some(&v) => (v >> 8, (v & 0xff) as u8),
+                    Some(&v) => (v >> 8, (v & 0xff)),
                 }
             };
         }
@@ -1473,7 +1473,11 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                 let bound = Ord::min(cs_avail_out, c_state_out_len);
 
                 unsafe {
-                    core::ptr::write_bytes(cs_next_out as *mut u8, c_state_out_ch, bound as usize);
+                    core::ptr::write_bytes(
+                        cs_next_out as *mut u8,
+                        c_state_out_ch as u8,
+                        bound as usize,
+                    );
                     cs_next_out = cs_next_out.add(bound as usize);
                 };
 
@@ -1507,12 +1511,12 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
 
                 if k1 != c_k0 {
                     c_k0 = k1;
-                    write_one_byte!(c_state_out_ch);
+                    write_one_byte!(c_state_out_ch as u8);
                     continue;
                 }
 
                 if c_nblock_used == s_save_nblockPP {
-                    write_one_byte!(c_state_out_ch);
+                    write_one_byte!(c_state_out_ch as u8);
                     continue;
                 }
 
@@ -1544,7 +1548,7 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
 
                 (c_tPos, k1) = BZ_GET_FAST_C!(c_tPos);
                 c_nblock_used += 1;
-                c_state_out_len = k1 as u32 + 4;
+                c_state_out_len = k1 + 4;
                 (c_tPos, c_k0) = BZ_GET_FAST_C!(c_tPos);
                 c_nblock_used += 1;
 
@@ -1560,10 +1564,10 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
             strm.total_out_hi32 = (strm.total_out_hi32).wrapping_add(1);
         }
         s.calculatedBlockCRC = c_calculatedBlockCRC;
-        s.state_out_ch = c_state_out_ch;
+        s.state_out_ch = c_state_out_ch as u8;
         s.state_out_len = c_state_out_len;
         s.nblock_used = c_nblock_used;
-        s.k0 = c_k0;
+        s.k0 = c_k0 as u8;
         s.tPos = c_tPos;
         strm.next_out = cs_next_out;
         strm.avail_out = cs_avail_out;
