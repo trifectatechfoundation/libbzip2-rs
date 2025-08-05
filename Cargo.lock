@@ -9,6 +9,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
+name = "bzip2-cli"
+version = "0.2.2"
+dependencies = [
+ "crc32fast",
+ "libbz2-rs-sys",
+ "libc",
+ "tempfile",
+]
+
+[[package]]
 name = "bzip2-sys"
 version = "0.1.13+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -63,16 +73,6 @@ name = "libbz2-rs-sys"
 version = "0.2.2"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "libbzip2-rs"
-version = "0.2.2"
-dependencies = [
- "crc32fast",
- "libbz2-rs-sys",
- "libc",
- "tempfile",
 ]
 
 [[package]]
