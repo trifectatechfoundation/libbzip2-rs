@@ -21,67 +21,109 @@ jobs:
   build:
     name: Build and test
     runs-on: "${{ matrix.os }}"
+    env:
+      RUST_BACKTRACE: 1
+      # i686-unknown-linux-gnu
+      CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER: i686-linux-gnu-gcc
+      # s390x-unknown-linux-gnu
+      CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_LINKER: s390x-linux-gnu-gcc
+      CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER: qemu-s390x -L /usr/s390x-linux-gnu
+      CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C target-feature=+crt-static"
+      # wasm32-wasip1 (std for wasip2 is unstable)
+      WASI_SDK_PATH: /tmp/wasi-sdk-24.0-x86_64-linux
+      CC_wasm32_wasip1: /tmp/wasi-sdk-24.0-x86_64-linux/bin/clang
+      AR_wasm32_wasip1: /tmp/wasi-sdk-24.0-x86_64-linux/bin/llvm-ar
+      CARGO_TARGET_WASM32_WASIP1_RUNNER: "wasmtime --dir ../tests"
+      CARGO_TARGET_WASM32_WASIP1_RUSTFLAGS: "-Ctarget-feature=+simd128"
     strategy:
       matrix:
         include:
           - rust: stable
-            os: ubuntu-latest
-            features: ""
             target: "x86_64-unknown-linux-gnu"
+            os: ubuntu-latest
+            codecov: true
+
           - rust: msrv
-            os: ubuntu-latest
-            features: ""
             target: "x86_64-unknown-linux-gnu"
+            os: ubuntu-latest
+            codecov: false
+
           - rust: beta
-            os: ubuntu-latest
-            features: ""
             target: "x86_64-unknown-linux-gnu"
-          - rust: "stable"
+            os: ubuntu-latest
+            codecov: false
+
+          - target: "aarch64-unknown-linux-gnu"
+            os: ubuntu-24.04-arm
+            codecov: true
+
+          - target: "i686-unknown-linux-gnu"
+            os: ubuntu-latest
+            codecov: true
+            packages: gcc-i686-linux-gnu
+
+          - target: "s390x-unknown-linux-gnu"
+            os: ubuntu-latest
+            codecov: false
+            packages: gcc-s390x-linux-gnu qemu-user qemu-user-static libc6-dev-s390x-cross
+
+          - target: "wasm32-wasip1"
+            os: ubuntu-latest
+            flags: "-p libbz2-rs-sys -p test-libbz2-rs-sys"
+            codecov: false
+
+          - target: "x86_64-apple-darwin"
             os: macos-latest
-            features: ""
-            target: "x86_64-apple-darwin"
-          - rust: "stable"
+            codecov: true
+
+          - target: "aarch64-apple-darwin"
             os: macos-14
-            features: ""
-            target: "aarch64-apple-darwin"
-          - rust: stable-x86_64-gnu
+            codecov: true
+
+          - target: "x86_64-pc-windows-gnu"
             os: windows-2022
-            features: ""
-            target: "x86_64-pc-windows-gnu"
-          - rust: stable-x86_64-msvc
-            os: windows-2022
-            features: ""
-            target: "x86_64-pc-windows-msvc"
+            codecov: false
+
+          - target: "aarch64-pc-windows-msvc"
+            os: windows-11-arm
+            codecov: false
     steps:
       - name: Checkout sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
         with:
           persist-credentials: false
           submodules: true
+
+      # Install the correct rust toolchain/version
       - name: Set target rust version
-        run: echo "TARGET_RUST_VERSION=$(if [ "${{matrix.rust}}" = "msrv" ]; then grep rust-version Cargo.toml | grep MSRV | cut -d'"' -f2; else echo "${{matrix.rust}}"; fi)" >> $GITHUB_ENV
-        if: matrix.os != 'windows-2022'
+        run: echo "MSRV=$(grep rust-version Cargo.toml | grep MSRV | awk -F '\"' '{print $2}')" >> $GITHUB_ENV
+        if: ${{ matrix.rust == 'msrv' }}
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          toolchain: "${TARGET_RUST_VERSION}"
+          toolchain: ${{ env.MSRV || matrix.rust || 'stable' }}
           targets: "${{ matrix.target }}"
-        if: matrix.os != 'windows-2022'
-      - name: Install toolchain
-        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
-        with:
-          toolchain: "${{matrix.rust}}"
-          targets: "${{ matrix.target }}"
-        if: matrix.os == 'windows-2022'
-      - name: target
-        run: "rustc -vV | sed -n 's|host: ||p'"
-        if: matrix.os != 'windows-2022'
+
+      # Install dependencies
       - name: Install cargo-llvm-cov & cargo-nextest
         uses: taiki-e/install-action@d12e869b89167df346dd0ff65da342d1fb1202fb # v2.53.2
         with:
           tool: cargo-llvm-cov,cargo-nextest
+      - name: Cache apt packages
+        if: matrix.packages != ''
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: "${{ matrix.packages }}"
+          version: 2
+      - name: Download wasmtime & wasi-sdk
+        if: ${{ contains(matrix.target, 'wasm') }}
+        run: |
+          curl https://wasmtime.dev/install.sh -sSf | bash
+          echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz | tar xz --directory /tmp
+
       - name: cargo build
-        run: cargo build --target ${{matrix.target}} ${{ matrix.features }}
+        run: cargo build --target ${{matrix.target}} ${{ matrix.flags }}
       - name: cargo build (no_std)
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --crate-type rlib
         env:
@@ -90,19 +132,17 @@ jobs:
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --features rust-allocator --crate-type rlib
         env:
           RUSTFLAGS: -Aunused_variables -Aunused_assignments
+
       - name: cargo llvm-cov nextest
-        if: matrix.os != 'windows-2022'
-        run: cargo llvm-cov nextest --target ${{matrix.target}} ${{ matrix.features }} --lcov --output-path lcov.info --ignore-filename-regex "test-libbz2" --workspace
-        env:
-          RUST_BACKTRACE: 1
+        if: matrix.codecov
+        run: cargo llvm-cov nextest --lcov --output-path lcov.info --ignore-filename-regex "test-libz|dynamic-libz" --target ${{matrix.target}} ${{ matrix.flags }} --no-fail-fast
       - name: cargo nextest
-        if: matrix.os == 'windows-2022'
-        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.features }} --no-fail-fast
-        env:
-          RUST_BACKTRACE: 1
+        if: matrix.codecov == false
+        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.flags }} --no-fail-fast
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
-        if: matrix.os != 'windows-2022' && matrix.rust == 'stable'
+        if: matrix.codecov
         with:
           files: ./lcov.info
           fail_ci_if_error: false
@@ -110,56 +150,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           name: test
           verbose: true
-
-  build-qemu:
-    name: QEMU build & test
-    runs-on: "${{ matrix.os }}"
-    strategy:
-      matrix:
-        include:
-          - rust: stable
-            os: ubuntu-latest
-            features: ""
-            target: "s390x-unknown-linux-gnu"
-            gcc: "s390x-linux-gnu-gcc"
-            runner: "qemu-s390x -L /usr/s390x-linux-gnu"
-          - rust: stable
-            os: ubuntu-latest
-            features: ""
-            target: "i686-unknown-linux-gnu"
-            gcc: "i686-linux-gnu-gcc"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-        with:
-          persist-credentials: false
-          submodules: true
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: qemu-user qemu-user-static qemu-system-s390x gcc-s390x-linux-gnu gcc-i686-linux-gnu g++-s390x-linux-gnu
-          version: 1.0
-      - name: Copy QEMU Cargo Config
-        run: |
-          mkdir -p .cargo
-          cp qemu-cargo-config.toml .cargo/config.toml
-      - name: Install toolchain
-        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
-        with:
-          toolchain: "stable"
-          targets: "${{ matrix.target }}"
-      - name: target
-        run: "rustc -vV | sed -n 's|host: ||p'"
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@d12e869b89167df346dd0ff65da342d1fb1202fb # v2.53.2
-        with:
-          tool: cargo-nextest
-      - name: cargo build
-        run: cargo build --target ${{matrix.target}} ${{ matrix.features }}
-      - name: cargo nextest # reports segfaults in a helpful way
-        run: RUNNER="${{ matrix.runner }}" cargo nextest run --target ${{matrix.target}} ${{ matrix.features }}
-        env:
-          RUST_BACKTRACE: 1
-          CC: ${{matrix.gcc}}
 
   clippy:
     name: Clippy
@@ -290,45 +280,6 @@ jobs:
           flags: fuzz-${{ matrix.fuzz_target }}
           token: ${{ secrets.CODECOV_TOKEN }}
           name: fuzz
-
-  wasm32:
-    name: "wasm32"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-        with:
-          persist-credentials: false
-          submodules: true
-      - name: Install wasmtime
-        run: curl https://wasmtime.dev/install.sh -sSf | bash
-      - name: Copy .cargo/config.toml
-        run: |
-          mkdir -p .cargo
-          cp qemu-cargo-config.toml .cargo/config.toml
-      - name: Install toolchain
-        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
-        with:
-          toolchain: "stable"
-          targets: "wasm32-wasip1"
-      - name: target
-        run: "rustc -vV | sed -n 's|host: ||p'"
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@d12e869b89167df346dd0ff65da342d1fb1202fb # v2.53.2
-        with:
-          tool: cargo-nextest
-      - name: Download wasi-sdk
-        run: |
-          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz | tar xz
-      - name: cargo nextest (without SIMD)
-        run: |
-          export CC="$(pwd)/wasi-sdk-24.0-x86_64-linux/bin/clang"
-          export CFLAGS="-target wasm32-wasip1"
-          cargo nextest run -p libbz2-rs-sys -p test-libbz2-rs-sys --target wasm32-wasip1 \
-            -- --skip high_level_write --skip open_and_close # These tests use temp_dir
-        env:
-          RUST_BACKTRACE: 1
-          RUSTFLAGS: ""
 
   miri:
     name: "Miri"
