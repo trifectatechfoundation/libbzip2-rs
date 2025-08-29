@@ -1316,6 +1316,7 @@ mod high_level_interface {
     }
 
     #[test]
+    #[cfg_attr(target_family = "wasm", ignore = "no file system on wasm")]
     fn high_level_write() {
         use libbz2_rs_sys::*;
 
