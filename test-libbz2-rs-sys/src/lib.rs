@@ -293,7 +293,7 @@ pub unsafe fn decompress_c_with_capacity(
                         dest.reserve(add_space as usize);
 
                         // If resize() reallocates, it may have moved in memory.
-                        strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                        strm.next_out = dest.as_mut_ptr().cast::<c_char>().wrapping_add(used);
                         strm.avail_out += add_space;
 
                         continue;
@@ -376,7 +376,7 @@ pub unsafe fn decompress_rs_with_capacity(
                         dest.reserve(add_space as usize);
 
                         // If resize() reallocates, it may have moved in memory.
-                        strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                        strm.next_out = dest.as_mut_ptr().cast::<c_char>().wrapping_add(used);
                         strm.avail_out += add_space;
 
                         continue;
@@ -454,7 +454,7 @@ pub unsafe fn compress_c_with_capacity(
                     dest.resize(dest.len() + add_space as usize, 0);
 
                     // If resize() reallocates, it may have moved in memory.
-                    strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                    strm.next_out = dest.as_mut_ptr().cast::<c_char>().wrapping_add(used);
                     strm.avail_out += add_space;
 
                     continue;
@@ -536,7 +536,7 @@ pub unsafe fn compress_rs_with_capacity(
                     dest.resize(dest.len() + add_space as usize, 0);
 
                     // If resize() reallocates, it may have moved in memory.
-                    strm.next_out = dest.as_mut_ptr().cast::<i8>().wrapping_add(used);
+                    strm.next_out = dest.as_mut_ptr().cast::<c_char>().wrapping_add(used);
                     strm.avail_out += add_space;
 
                     continue;
