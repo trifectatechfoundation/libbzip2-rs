@@ -23,6 +23,10 @@ jobs:
     runs-on: "${{ matrix.os }}"
     env:
       RUST_BACKTRACE: 1
+
+      # NOTE: tests that configure a custom runner must add that runner to 
+      # the `runner` function in tests/quick.rs and tests/recover.rs.
+
       # i686-unknown-linux-gnu
       CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER: i686-linux-gnu-gcc
       # s390x-unknown-linux-gnu
@@ -60,16 +64,16 @@ jobs:
           - target: "i686-unknown-linux-gnu"
             os: ubuntu-latest
             codecov: true
-            packages: gcc-i686-linux-gnu
+            apt-packages: gcc-i686-linux-gnu
 
           - target: "s390x-unknown-linux-gnu"
             os: ubuntu-latest
             codecov: false
-            packages: gcc-s390x-linux-gnu qemu-user qemu-user-static libc6-dev-s390x-cross qemu-system-s390x
+            apt-packages: qemu-user qemu-user-static libc6-dev-s390x-cross gcc-s390x-linux-gnu
 
           - target: "wasm32-wasip1"
             os: ubuntu-latest
-            flags: "-p libbz2-rs-sys -p test-libbz2-rs-sys"
+            packages: "-p libbz2-rs-sys -p test-libbz2-rs-sys"
             codecov: false
 
           - target: "x86_64-apple-darwin"
@@ -110,10 +114,10 @@ jobs:
         with:
           tool: cargo-llvm-cov,cargo-nextest
       - name: Cache apt packages
-        if: matrix.packages != ''
+        if: matrix.apt-packages != ''
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: "${{ matrix.packages }}"
+          packages: "${{ matrix.apt-packages }}"
           version: 2
       - name: Download wasmtime & wasi-sdk
         if: ${{ contains(matrix.target, 'wasm') }}
@@ -123,7 +127,8 @@ jobs:
           curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz | tar xz --directory /tmp
 
       - name: cargo build
-        run: cargo build --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }}
+        run: cargo build --target ${{matrix.target}} ${{ matrix.packages || '--workspace' }}
+        if: ${{ matrix.target == 's390x-unknown-linux-gnu' }}
       - name: cargo build (no_std)
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --crate-type rlib
         env:
@@ -135,10 +140,10 @@ jobs:
 
       - name: cargo llvm-cov nextest
         if: matrix.codecov
-        run: cargo llvm-cov nextest --lcov --output-path lcov.info --ignore-filename-regex "test-libz|dynamic-libz" --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }} --no-fail-fast
+        run: cargo llvm-cov nextest --lcov --output-path lcov.info --ignore-filename-regex "test-libz|dynamic-libz" --target ${{matrix.target}} ${{ matrix.packages || '--workspace' }} --no-fail-fast
       - name: cargo nextest
         if: matrix.codecov == false
-        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }} --no-fail-fast
+        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.packages || '--workspace' }} --no-fail-fast
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
