@@ -9,17 +9,28 @@ fn bzip2recover_binary() -> &'static str {
     env!("CARGO_BIN_EXE_bzip2recover")
 }
 
+pub fn runner() -> Option<String> {
+    std::env::var("RUNNER").ok().or_else(|| {
+        if cfg!(target_arch = "s390x") {
+            std::env::var("CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER").ok()
+        } else {
+            None
+        }
+    })
+}
+
 fn run_bzip2recover(path: Option<&Path>) -> std::process::Output {
-    let mut cmd;
-    match env::var("RUNNER") {
-        Ok(runner) if !runner.is_empty() => {
+    let mut cmd = match crate::runner() {
+        Some(runner) if !runner.is_empty() => {
             let mut runner_args = runner.split(' ');
-            cmd = Command::new(runner_args.next().unwrap());
+            let mut cmd = Command::new(runner_args.next().unwrap());
             cmd.args(runner_args);
             cmd.arg(bzip2recover_binary());
+
+            cmd
         }
-        _ => cmd = Command::new(bzip2recover_binary()),
-    }
+        _ => Command::new(bzip2recover_binary()),
+    };
 
     if let Some(path) = path {
         cmd.arg(path.as_os_str()).stdout(Stdio::piped());

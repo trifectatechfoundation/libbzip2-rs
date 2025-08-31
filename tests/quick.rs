@@ -7,6 +7,30 @@ fn bzip2_binary() -> &'static str {
     env!("CARGO_BIN_EXE_bzip2")
 }
 
+pub fn runner() -> Option<String> {
+    std::env::var("RUNNER").ok().or_else(|| {
+        if cfg!(target_arch = "s390x") {
+            std::env::var("CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER").ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn command() -> Command {
+    match crate::runner() {
+        Some(runner) if !runner.is_empty() => {
+            let mut runner_args = runner.split(' ');
+            let mut cmd = Command::new(runner_args.next().unwrap());
+            cmd.args(runner_args);
+            cmd.arg(bzip2_binary());
+
+            cmd
+        }
+        _ => Command::new(bzip2_binary()),
+    }
+}
+
 #[macro_export]
 macro_rules! expect_output_failure {
     ($output:expr, $expected_stderr:expr $(,)?) => {
@@ -135,20 +159,6 @@ fn timestamps(metadata: std::fs::Metadata) -> (u64, u64) {
     (atime, modtime)
 }
 
-fn command() -> Command {
-    match env::var("RUNNER") {
-        Ok(runner) if !runner.is_empty() => {
-            let mut runner_args = runner.split(' ');
-            let mut cmd = Command::new(runner_args.next().unwrap());
-            cmd.args(runner_args);
-            cmd.arg(bzip2_binary());
-
-            cmd
-        }
-        _ => Command::new(bzip2_binary()),
-    }
-}
-
 fn run_test(compressed: &str, expected: &[u8]) {
     let mut cmd = command();
 
@@ -236,9 +246,11 @@ fn bad_flag() {
     {
         let mut cmd = command();
         cmd.arg("--foobar");
+        dbg!(&cmd);
         let output = cmd.output().unwrap();
 
         assert!(!output.status.success(),);
+        dbg!(&output);
         assert!(String::from_utf8_lossy(&output.stderr).contains("Bad flag `--foobar'"));
     }
 
