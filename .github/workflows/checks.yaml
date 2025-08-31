@@ -123,7 +123,7 @@ jobs:
           curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz | tar xz --directory /tmp
 
       - name: cargo build
-        run: cargo build --target ${{matrix.target}} ${{ matrix.flags }}
+        run: cargo build --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }}
       - name: cargo build (no_std)
         run: cargo rustc --target ${{matrix.target}} -p libbz2-rs-sys --lib --no-default-features --crate-type rlib
         env:
@@ -135,10 +135,10 @@ jobs:
 
       - name: cargo llvm-cov nextest
         if: matrix.codecov
-        run: cargo llvm-cov nextest --lcov --output-path lcov.info --ignore-filename-regex "test-libz|dynamic-libz" --target ${{matrix.target}} ${{ matrix.flags }} --no-fail-fast
+        run: cargo llvm-cov nextest --lcov --output-path lcov.info --ignore-filename-regex "test-libz|dynamic-libz" --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }} --no-fail-fast
       - name: cargo nextest
         if: matrix.codecov == false
-        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.flags }} --no-fail-fast
+        run: cargo nextest run --target ${{matrix.target}} ${{ matrix.flags || '--workspace' }} --no-fail-fast
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
