@@ -65,7 +65,7 @@ jobs:
           - target: "s390x-unknown-linux-gnu"
             os: ubuntu-latest
             codecov: false
-            packages: gcc-s390x-linux-gnu qemu-user qemu-user-static libc6-dev-s390x-cross
+            packages: gcc-s390x-linux-gnu qemu-user qemu-user-static libc6-dev-s390x-cross qemu-system-s390x
 
           - target: "wasm32-wasip1"
             os: ubuntu-latest
