@@ -39,8 +39,14 @@ name = "libbz2_rs"
 filename = "libbz2_rs"
 
 # no_std requires panic=abort
+# Also use lto to optimize away references to rust_eh_personality on targets
+# that are not no_std. On no_std targets rust_eh_personality is not referenced
+# in the first place.
 [profile.dev]
 panic = "abort"
+lto = "thin"
+opt-level = 1
 
 [profile.release]
 panic = "abort"
+lto = "thin"
