@@ -443,9 +443,9 @@ pub(crate) enum State {
     Input,
 }
 
-pub(crate) const BZ_N_RADIX: i32 = 2;
-pub(crate) const BZ_N_QSORT: i32 = 12;
-pub(crate) const BZ_N_SHELL: i32 = 18;
+pub(crate) const BZ_N_RADIX: u32 = 2;
+pub(crate) const BZ_N_QSORT: u32 = 12;
+pub(crate) const BZ_N_SHELL: u32 = 18;
 pub(crate) const BZ_N_OVERSHOOT: usize = (BZ_N_RADIX + BZ_N_QSORT + BZ_N_SHELL + 2) as usize;
 
 pub(crate) const FTAB_LEN: usize = u16::MAX as usize + 2;
