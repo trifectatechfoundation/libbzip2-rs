@@ -447,7 +447,7 @@ fn mainSimpleSort(
     nblock: i32,
     lo: i32,
     hi: i32,
-    d: i32,
+    d: u32,
     budget: &mut i32,
 ) {
     let bigN = hi - lo + 1;
@@ -461,8 +461,8 @@ fn mainSimpleSort(
             let v = ptr[i as usize];
             let mut j = i;
             while mainGtU(
-                (ptr[(j - h) as usize]).wrapping_add(d as u32),
-                v.wrapping_add(d as u32),
+                (ptr[(j - h) as usize]).wrapping_add(d),
+                v.wrapping_add(d),
                 block,
                 quadrant,
                 nblock as u32,
@@ -500,7 +500,7 @@ fn median_of_3(mut a: u8, mut b: u8, mut c: u8) -> u8 {
 }
 
 const MAIN_QSORT_SMALL_THRESH: i32 = 20;
-const MAIN_QSORT_DEPTH_THRESH: i32 = BZ_N_RADIX + BZ_N_QSORT;
+const MAIN_QSORT_DEPTH_THRESH: u32 = BZ_N_RADIX + BZ_N_QSORT;
 const MAIN_QSORT_STACK_SIZE: i32 = 100;
 
 fn mainQSort3(
@@ -510,7 +510,7 @@ fn mainQSort3(
     nblock: i32,
     loSt: i32,
     hiSt: i32,
-    dSt: i32,
+    dSt: u32,
     budget: &mut i32,
 ) {
     let mut unLo: i32;
@@ -521,7 +521,7 @@ fn mainQSort3(
     let mut m: i32;
     let mut med: i32;
 
-    let mut stack = [(0i32, 0i32, 0i32); 100];
+    let mut stack = [(0i32, 0i32, 0u32); 100];
 
     stack[0] = (loSt, hiSt, dSt);
 
@@ -540,10 +540,9 @@ fn mainQSort3(
             }
         } else {
             med = median_of_3(
-                block[(ptr[lo as usize]).wrapping_add(d as c_uint) as usize],
-                block[(ptr[hi as usize]).wrapping_add(d as c_uint) as usize],
-                block[((ptr[((lo + hi) >> 1) as usize]).wrapping_add(d as c_uint) as isize)
-                    as usize],
+                block[(ptr[lo as usize]).wrapping_add(d) as usize],
+                block[(ptr[hi as usize]).wrapping_add(d) as usize],
+                block[((ptr[((lo + hi) >> 1) as usize]).wrapping_add(d) as isize) as usize],
             ) as i32;
             ltLo = lo;
             unLo = ltLo;
@@ -551,7 +550,7 @@ fn mainQSort3(
             unHi = gtHi;
             loop {
                 while unLo <= unHi {
-                    n = block[(ptr[unLo as usize]).wrapping_add(d as c_uint) as usize] as i32 - med;
+                    n = block[(ptr[unLo as usize]).wrapping_add(d) as usize] as i32 - med;
                     match n.cmp(&0) {
                         Ordering::Greater => break,
                         Ordering::Equal => {
@@ -563,7 +562,7 @@ fn mainQSort3(
                     }
                 }
                 while unLo <= unHi {
-                    n = block[(ptr[unHi as usize]).wrapping_add(d as c_uint) as usize] as i32 - med;
+                    n = block[(ptr[unHi as usize]).wrapping_add(d) as usize] as i32 - med;
                     match n.cmp(&0) {
                         Ordering::Less => break,
                         Ordering::Equal => {
@@ -760,7 +759,7 @@ fn mainSort(
                                 hi - lo + 1 as c_int,
                             );
                         }
-                        mainQSort3(ptr, block, quadrant, nblock, lo, hi, 2 as c_int, budget);
+                        mainQSort3(ptr, block, quadrant, nblock, lo, hi, 2, budget);
                         numQSorted += hi - lo + 1 as c_int;
                         if *budget < 0 as c_int {
                             return;
