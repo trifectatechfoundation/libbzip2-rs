@@ -3,6 +3,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::manual_c_str_literals)]
 
+use std::borrow::Cow;
 use std::ffi::{c_char, c_int, CStr, CString, OsStr};
 use std::fs::Metadata;
 use std::io::{self, IsTerminal, Read, Write};
@@ -80,8 +81,8 @@ static exitValue: AtomicI32 = AtomicI32::new(0);
 struct Config {
     program_name: PathBuf,
 
-    input: PathBuf,
-    output: PathBuf,
+    input: Cow<'static, Path>,
+    output: Cow<'static, Path>,
 
     // general
     noisy: bool,
@@ -146,16 +147,16 @@ impl Config {
     fn with_compress_input(&mut self, name: Option<&str>) {
         match (name, self.src_mode) {
             (_, SourceMode::I2O) => {
-                self.input = Path::new("(stdin)").to_owned();
-                self.output = Path::new("(stdout)").to_owned();
+                self.input = Cow::from(Path::new("(stdin)"));
+                self.output = Cow::from(Path::new("(stdout)"));
             }
             (Some(name), SourceMode::F2O) => {
-                self.input = Path::new(name).to_owned();
-                self.output = Path::new("(stdout)").to_owned();
+                self.input = Cow::from(Path::new(name).to_owned());
+                self.output = Cow::from(Path::new("(stdout)"));
             }
             (Some(name), SourceMode::F2F) => {
-                self.input = Path::new(name).to_owned();
-                self.output = PathBuf::from(format!("{name}.bz2"));
+                self.input = Cow::from(Path::new(name).to_owned());
+                self.output = Cow::from(PathBuf::from(format!("{name}.bz2")));
             }
             (None, SourceMode::F2O | SourceMode::F2F) => panic!("compress: bad modes"),
         }
@@ -164,15 +165,15 @@ impl Config {
     fn with_uncompress_input(&mut self, name: Option<&str>) {
         match (name, self.src_mode) {
             (_, SourceMode::I2O) => {
-                self.input = Path::new("(stdin)").to_owned();
-                self.output = Path::new("(stdout)").to_owned();
+                self.input = Cow::from(Path::new("(stdin)"));
+                self.output = Cow::from(Path::new("(stdout)"));
             }
             (Some(name), SourceMode::F2O) => {
-                self.input = Path::new(name).to_owned();
-                self.output = Path::new("(stdout)").to_owned();
+                self.input = Path::new(name).to_owned().into();
+                self.output = Cow::from(Path::new("(stdout)"));
             }
             (Some(name), SourceMode::F2F) => {
-                self.input = Path::new(name).to_owned();
+                self.input = Path::new(name).to_owned().into();
 
                 let mut name = name.to_owned();
 
@@ -188,24 +189,24 @@ impl Config {
                     name += ".out";
                 };
 
-                self.output = PathBuf::from(name);
+                self.output = PathBuf::from(name).into();
             }
             (None, SourceMode::F2O | SourceMode::F2F) => panic!("uncompress: bad modes"),
         }
     }
 
     fn with_test_input(&mut self, name: Option<&str>) {
-        self.output = Path::new("(none)").to_owned();
+        self.output = Cow::from(Path::new("(none)"));
 
         match (name, self.src_mode) {
             (_, SourceMode::I2O) => {
-                self.input = Path::new("(stdin)").to_owned();
+                self.input = Cow::from(Path::new("(stdin)"));
             }
             (Some(name), SourceMode::F2O) => {
-                self.input = Path::new(name).to_owned();
+                self.input = Path::new(name).to_owned().into();
             }
             (Some(name), SourceMode::F2F) => {
-                self.input = Path::new(name).to_owned();
+                self.input = Path::new(name).to_owned().into();
             }
             (None, SourceMode::F2O | SourceMode::F2F) => panic!("testf: bad modes"),
         }
@@ -2074,8 +2075,8 @@ fn main() {
     let config = Arc::new(RwLock::new(Config {
         program_name: program_name.to_owned(),
 
-        input: Path::new("(none)").to_owned(),
-        output: Path::new("(none)").to_owned(),
+        input: Cow::from(Path::new("(none)")),
+        output: Cow::from(Path::new("(none)")),
 
         // general
         noisy,
