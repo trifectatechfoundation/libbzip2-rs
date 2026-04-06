@@ -874,8 +874,8 @@ fn mainSort(
         bigDone[ss as usize] = true;
 
         if i < 255 {
-            let bbStart: i32 = (ftab[(ss as usize) << 8] & CLEARMASK) as i32;
-            let bbSize: i32 = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - bbStart;
+            let bbStart = ftab[(ss as usize) << 8] & CLEARMASK;
+            let bbSize = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - bbStart as i32;
 
             let shifts = (bbSize >> 16).count_ones();
 
@@ -892,7 +892,7 @@ fn mainSort(
             assert_h!(((bbSize - 1) >> shifts) <= 65535, 1002);
         }
     }
-    if verb >= 4 as c_int {
+    if verb >= 4 {
         debug_logln!(
             "        {} pointers, {} sorted, {} scanned",
             nblock,
