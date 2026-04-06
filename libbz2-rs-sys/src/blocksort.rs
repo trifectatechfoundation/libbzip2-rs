@@ -879,11 +879,11 @@ fn mainSort(
 
             let ptr = &ptr[bbStart as usize..][..bbSize as usize];
             for j in (0..bbSize).rev() {
-                let a2update: i32 = ptr[j as usize] as i32;
+                let a2update = ptr[j as usize] as usize;
                 let qVal: u16 = (j >> shifts) as u16;
-                quadrant[a2update as usize] = qVal;
+                quadrant[a2update] = qVal;
                 if (a2update as usize) < BZ_N_OVERSHOOT {
-                    quadrant[(a2update + nblock) as usize] = qVal;
+                    quadrant[a2update + nblock as usize] = qVal;
                 }
             }
 
