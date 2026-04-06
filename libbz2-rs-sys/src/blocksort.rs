@@ -444,7 +444,7 @@ fn mainSimpleSort(
     ptr: &mut [u32],
     block: &[u8],
     quadrant: &[u16],
-    nblock: i32,
+    nblock: usize,
     lo: i32,
     hi: i32,
     d: u32,
@@ -507,7 +507,7 @@ fn mainQSort3(
     ptr: &mut [u32],
     block: &[u8],
     quadrant: &[u16],
-    nblock: i32,
+    nblock: usize,
     loSt: i32,
     hiSt: i32,
     dSt: u32,
@@ -630,12 +630,12 @@ fn mainSort(
     block: &mut [u8],
     quadrant: &mut [u16],
     ftab: &mut [u32; FTAB_LEN],
-    nblock: i32,
+    nblock: usize,
     verb: i32,
     budget: &mut i32,
 ) {
     let mut j: i32;
-    let mut k: i32;
+    let mut k: usize;
     let mut ss: i32;
     let mut sb: i32;
     let mut bigDone: [bool; 256] = [false; 256];
@@ -652,13 +652,13 @@ fn mainSort(
     ftab.fill(0);
 
     j = (block[0] as i32) << 8;
-    for &block in block[..nblock as usize].iter().rev() {
+    for &block in block[..nblock].iter().rev() {
         j = (j >> 8) | (i32::from(block) << 8);
         ftab[j as usize] += 1;
     }
 
     for i in 0..BZ_N_OVERSHOOT {
-        block[nblock as usize + i] = block[i];
+        block[nblock + i] = block[i];
     }
 
     if verb >= 4 as c_int {
@@ -672,7 +672,7 @@ fn mainSort(
 
     s = ((block[0 as c_int as usize] as c_int) << 8 as c_int) as u16;
 
-    for (i, &block) in block[..nblock as usize].iter().enumerate().rev() {
+    for (i, &block) in block[..nblock].iter().enumerate().rev() {
         s = (s >> 8) | (u16::from(block) << 8);
         j = ftab[usize::from(s)] as i32 - 1;
         ftab[usize::from(s)] = j as u32;
@@ -788,9 +788,9 @@ fn mainSort(
             while j < copyStart[ss as usize] {
                 let v = match ptr[j as usize] {
                     0 => nblock,
-                    n => n as i32,
+                    n => n as usize,
                 };
-                k = v.wrapping_sub(1) as i32;
+                k = v.wrapping_sub(1);
                 c1 = block[k as usize];
                 if !bigDone[c1 as usize] {
                     let fresh11 = copyStart[c1 as usize];
@@ -804,10 +804,10 @@ fn mainSort(
             while j > copyEnd[ss as usize] {
                 let v = match ptr[j as usize] {
                     0 => nblock,
-                    n => n as i32,
+                    n => n as usize,
                 };
-                k = v.wrapping_sub(1) as i32;
-                c1 = block[k as usize];
+                k = v.wrapping_sub(1);
+                c1 = block[k];
                 if !bigDone[c1 as usize] {
                     let fresh12 = copyEnd[c1 as usize];
                     copyEnd[c1 as usize] -= 1;
@@ -824,7 +824,7 @@ fn mainSort(
                    Necessity for this case is demonstrated by compressing
                    a sequence of approximately 48.5 million of character
                    251; 1.0.0/1.0.1 will then die here. */
-                (copyStart[ss as usize] == 0 && copyEnd[ss as usize] == nblock-1),
+                (copyStart[ss as usize] == 0 && copyEnd[ss as usize] == nblock as i32 - 1),
             1007
         );
 
@@ -885,7 +885,7 @@ fn mainSort(
                 let qVal: u16 = (j >> shifts) as u16;
                 quadrant[a2update] = qVal;
                 if (a2update as usize) < BZ_N_OVERSHOOT {
-                    quadrant[a2update + nblock as usize] = qVal;
+                    quadrant[a2update + nblock] = qVal;
                 }
             }
 
@@ -897,7 +897,7 @@ fn mainSort(
             "        {} pointers, {} sorted, {} scanned",
             nblock,
             numQSorted,
-            nblock - numQSorted,
+            nblock as i32 - numQSorted,
         );
     }
 }
@@ -956,15 +956,7 @@ fn BZ2_blockSortHelp(
         let budgetInit = nblock as i32 * ((wfact - 1) / 3);
         let mut budget = budgetInit;
 
-        mainSort(
-            ptr,
-            block,
-            quadrant,
-            ftab,
-            nblock as i32,
-            verbosity,
-            &mut budget,
-        );
+        mainSort(ptr, block, quadrant, ftab, nblock, verbosity, &mut budget);
 
         if verbosity >= 3 {
             debug_logln!(
