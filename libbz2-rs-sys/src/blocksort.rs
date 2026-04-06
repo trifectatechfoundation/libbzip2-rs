@@ -225,9 +225,6 @@ fn fallbackSort(
 
     let mut ftab: [i32; 257] = [0; 257];
     let mut ftabCopy: [i32; 256] = [0; 256];
-    let mut H: i32;
-    let mut k: i32;
-    let mut l: i32;
 
     /*--
        Initial 1-char radix sort to generate
@@ -252,7 +249,7 @@ fn fallbackSort(
 
         for (i, e) in eclass8.iter().enumerate() {
             let j = usize::from(*e);
-            k = ftab[j] - 1;
+            let k = ftab[j] - 1;
             ftab[j] = k;
             fmap[k as usize] = i as u32;
         }
@@ -278,7 +275,9 @@ fn fallbackSort(
 
     /*-- the log(N) loop --*/
     let nblock = nblock as i32;
-    H = 1;
+    let mut H = 1;
+    let mut k: i32;
+    let mut l: i32;
     loop {
         if verb >= 4 {
             debug_log!("        depth {:>6} has ", H);
