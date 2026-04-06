@@ -722,7 +722,7 @@ fn mainSort(
 
     numQSorted = 0 as c_int;
 
-    for i in 0..=255 {
+    for i in 0..255 + 1 {
         /*--
            Process big buckets, starting with the least full.
            Basically this is a 3-step process in which we call
@@ -742,7 +742,7 @@ fn mainSort(
            completed many of the small buckets [ss, j], so
            we don't have to sort them at all.
         --*/
-        for j in 0..=255 {
+        for j in 0..255 + 1 {
             if j != ss {
                 sb = (ss << 8 as c_int) + j;
                 if ftab[sb as usize] & SETMASK == 0 {
