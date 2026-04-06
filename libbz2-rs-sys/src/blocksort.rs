@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 use core::cmp::Ordering;
-use core::ffi::{c_int, c_uint};
 
 use crate::{
     assert_h,
@@ -288,7 +287,7 @@ fn fallbackSort(
             if ISSET_BH!(i) {
                 j = i;
             }
-            k = x.wrapping_sub(H as c_uint) as i32;
+            k = x.wrapping_sub(H as u32) as i32;
             if k < 0 {
                 k += nblock;
             }
@@ -644,7 +643,7 @@ fn mainSort(
     let mut c1: u8;
     let mut numQSorted: i32;
     let mut s: u16;
-    if verb >= 4 as c_int {
+    if verb >= 4 {
         debug_logln!("        main sort initialise ...");
     }
 
@@ -661,7 +660,7 @@ fn mainSort(
         block[nblock + i] = block[i];
     }
 
-    if verb >= 4 as c_int {
+    if verb >= 4 {
         debug_logln!("        bucket sorting ...");
     }
 
@@ -670,7 +669,7 @@ fn mainSort(
         ftab[i] += ftab[i - 1];
     }
 
-    s = ((block[0 as c_int as usize] as c_int) << 8 as c_int) as u16;
+    s = u16::from(block[0]) << 8;
 
     for (i, &block) in block[..nblock].iter().enumerate().rev() {
         s = (s >> 8) | (u16::from(block) << 8);
@@ -683,10 +682,10 @@ fn mainSort(
     let mut runningOrder: [i32; 256] = core::array::from_fn(|i| i as i32);
 
     let mut vv: i32;
-    let mut h: i32 = 1 as c_int;
+    let mut h: i32 = 1;
     loop {
-        h = 3 as c_int * h + 1 as c_int;
-        if h > 256 as c_int {
+        h = 3 * h + 1;
+        if h > 256 {
             break;
         }
     }
@@ -698,20 +697,20 @@ fn mainSort(
     }
 
     loop {
-        h /= 3 as c_int;
+        h /= 3;
         for i in h..256 {
             vv = runningOrder[i as usize];
             j = i;
             while BIGFREQ!(runningOrder[(j - h) as usize] as usize) > BIGFREQ!(vv as usize) {
                 runningOrder[j as usize] = runningOrder[(j - h) as usize];
                 j -= h;
-                if j <= h - 1 as c_int {
+                if j < h {
                     break;
                 }
             }
             runningOrder[j as usize] = vv;
         }
-        if h == 1 as c_int {
+        if h == 1 {
             break;
         }
     }
@@ -720,7 +719,7 @@ fn mainSort(
        The main sorting loop.
     --*/
 
-    numQSorted = 0 as c_int;
+    numQSorted = 0;
 
     for i in 0..255 + 1 {
         /*--
@@ -744,24 +743,24 @@ fn mainSort(
         --*/
         for j in 0..255 + 1 {
             if j != ss {
-                sb = (ss << 8 as c_int) + j;
+                sb = (ss << 8) + j;
                 if ftab[sb as usize] & SETMASK == 0 {
                     let lo: i32 = (ftab[sb as usize] & CLEARMASK) as i32;
                     let hi: i32 = ((ftab[sb as usize + 1] & CLEARMASK).wrapping_sub(1)) as i32;
 
                     if hi > lo {
-                        if verb >= 4 as c_int {
+                        if verb >= 4 {
                             debug_logln!(
                                 "        qsort [{:#x}, {:#x}]   done {}   this {}",
                                 ss,
                                 j,
                                 numQSorted,
-                                hi - lo + 1 as c_int,
+                                hi - lo + 1,
                             );
                         }
                         mainQSort3(ptr, block, quadrant, nblock, lo, hi, 2, budget);
-                        numQSorted += hi - lo + 1 as c_int;
-                        if *budget < 0 as c_int {
+                        numQSorted += hi - lo + 1;
+                        if *budget < 0 {
                             return;
                         }
                     }
@@ -921,7 +920,7 @@ pub(crate) fn block_sort(s: &mut EState) {
 
     BZ2_blockSortHelp(ptr, &mut s.arr2, ftab, nblock, s.workFactor, s.verbosity);
 
-    s.origPtr = -1 as c_int;
+    s.origPtr = -1;
     for i in 0..s.nblock {
         if ptr[i as usize] == 0 {
             s.origPtr = i;
@@ -968,7 +967,7 @@ fn BZ2_blockSortHelp(
         }
 
         if budget < 0 {
-            if verbosity >= 2 as c_int {
+            if verbosity >= 2 {
                 debug_logln!("    too repetitive; using fallback sorting algorithm");
             }
 
