@@ -874,11 +874,8 @@ fn mainSort(
         if i < 255 {
             let bbStart: i32 = (ftab[(ss as usize) << 8] & CLEARMASK) as i32;
             let bbSize: i32 = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - bbStart;
-            let mut shifts: i32 = 0 as c_int;
 
-            while bbSize >> shifts > 65534 as c_int {
-                shifts += 1;
-            }
+            let shifts = (bbSize >> 16).count_ones();
 
             let ptr = &ptr[bbStart as usize..][..bbSize as usize];
             for j in (0..bbSize).rev() {
