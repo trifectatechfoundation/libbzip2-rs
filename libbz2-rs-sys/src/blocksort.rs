@@ -190,7 +190,7 @@ fn fallbackSort(
     fmap: &mut [u32],
     arr2: &mut Arr2,
     bhtab: &mut [u32; FTAB_LEN],
-    nblock: i32,
+    nblock: usize,
     verb: i32,
 ) {
     macro_rules! SET_BH {
@@ -277,6 +277,7 @@ fn fallbackSort(
     }
 
     /*-- the log(N) loop --*/
+    let nblock = nblock as i32;
     H = 1;
     loop {
         if verb >= 4 {
@@ -940,7 +941,7 @@ fn BZ2_blockSortHelp(
     verbosity: i32,
 ) {
     if nblock < 10000 {
-        fallbackSort(ptr, arr2, ftab, nblock as i32, verbosity);
+        fallbackSort(ptr, arr2, ftab, nblock, verbosity);
     } else {
         let (block, quadrant) = arr2.block_and_quadrant(nblock);
 
@@ -971,7 +972,7 @@ fn BZ2_blockSortHelp(
                 debug_logln!("    too repetitive; using fallback sorting algorithm");
             }
 
-            fallbackSort(ptr, arr2, ftab, nblock as i32, verbosity);
+            fallbackSort(ptr, arr2, ftab, nblock, verbosity);
         }
     }
 }
