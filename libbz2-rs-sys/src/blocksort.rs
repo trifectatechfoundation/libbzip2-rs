@@ -32,7 +32,7 @@ fn fallbackSimpleSort(fmap: &mut [u32], eclass: &[u32], lo: i32, hi: i32) {
         }
     }
 
-    for i in (lo..=hi - 1).rev() {
+    for i in (lo..hi).rev() {
         tmp = fmap[i as usize] as i32;
         ec_tmp = eclass[tmp as usize];
         j = i + 1;
