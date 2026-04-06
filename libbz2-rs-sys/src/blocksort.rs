@@ -791,7 +791,7 @@ fn mainSort(
                     n => n as usize,
                 };
                 k = v.wrapping_sub(1);
-                c1 = block[k as usize];
+                c1 = block[k];
                 if !bigDone[c1 as usize] {
                     let fresh11 = copyStart[c1 as usize];
                     copyStart[c1 as usize] += 1;
@@ -884,7 +884,7 @@ fn mainSort(
                 let a2update = ptr[j as usize] as usize;
                 let qVal: u16 = (j >> shifts) as u16;
                 quadrant[a2update] = qVal;
-                if (a2update as usize) < BZ_N_OVERSHOOT {
+                if a2update < BZ_N_OVERSHOOT {
                     quadrant[a2update + nblock] = qVal;
                 }
             }
