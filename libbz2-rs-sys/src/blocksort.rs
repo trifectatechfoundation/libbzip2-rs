@@ -871,7 +871,7 @@ fn mainSort(
         --*/
         bigDone[ss as usize] = true;
 
-        if i < 255 as c_int {
+        if i < 255 {
             let bbStart: i32 = (ftab[(ss as usize) << 8] & CLEARMASK) as i32;
             let bbSize: i32 = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - bbStart;
             let mut shifts: i32 = 0 as c_int;
@@ -880,15 +880,14 @@ fn mainSort(
                 shifts += 1;
             }
 
-            j = bbSize - 1 as c_int;
-            while j >= 0 as c_int {
-                let a2update: i32 = ptr[(bbStart + j) as usize] as i32;
+            let ptr = &ptr[bbStart as usize..][..bbSize as usize];
+            for j in (0..bbSize).rev() {
+                let a2update: i32 = ptr[j as usize] as i32;
                 let qVal: u16 = (j >> shifts) as u16;
                 quadrant[a2update as usize] = qVal;
                 if (a2update as usize) < BZ_N_OVERSHOOT {
                     quadrant[(a2update + nblock) as usize] = qVal;
                 }
-                j -= 1;
             }
 
             assert_h!(((bbSize - 1) >> shifts) <= 65535, 1002);
