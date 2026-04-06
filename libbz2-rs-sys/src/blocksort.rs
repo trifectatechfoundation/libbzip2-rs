@@ -786,10 +786,11 @@ fn mainSort(
 
             j = (ftab[(ss as usize) << 8] & CLEARMASK) as i32;
             while j < copyStart[ss as usize] {
-                k = (ptr[j as usize]).wrapping_sub(1) as i32;
-                if k < 0 as c_int {
-                    k += nblock;
-                }
+                let v = match ptr[j as usize] {
+                    0 => nblock,
+                    n => n as i32,
+                };
+                k = v.wrapping_sub(1) as i32;
                 c1 = block[k as usize];
                 if !bigDone[c1 as usize] {
                     let fresh11 = copyStart[c1 as usize];
@@ -801,10 +802,11 @@ fn mainSort(
 
             j = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - 1;
             while j > copyEnd[ss as usize] {
-                k = (ptr[j as usize]).wrapping_sub(1) as i32;
-                if k < 0 as c_int {
-                    k += nblock;
-                }
+                let v = match ptr[j as usize] {
+                    0 => nblock,
+                    n => n as i32,
+                };
+                k = v.wrapping_sub(1) as i32;
                 c1 = block[k as usize];
                 if !bigDone[c1 as usize] {
                     let fresh12 = copyEnd[c1 as usize];
