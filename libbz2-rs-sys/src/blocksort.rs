@@ -235,7 +235,7 @@ fn fallbackSort(
     }
 
     {
-        let eclass8 = arr2.block(nblock as usize);
+        let eclass8 = arr2.block(nblock);
 
         for e in eclass8.iter() {
             ftab[usize::from(*e)] += 1;
@@ -255,7 +255,7 @@ fn fallbackSort(
         }
     }
 
-    bhtab[0..2 + nblock as usize / 32].fill(0);
+    bhtab[0..2 + nblock / 32].fill(0);
 
     for i in 0..256 {
         SET_BH!(ftab[i]);
