@@ -899,6 +899,14 @@ fn setup_ctrl_c_handler(config: &Arc<RwLock<Config>>) {
 
     ABORT_PIPE.store(pair[1], Ordering::Relaxed);
 
+    // Perform the cleanup logic in a separate thread.
+    //
+    // The cleanup logic executes some operations (`fclose`, `eprintln!`, etc.) that are not
+    // async-signal-safe, see https://man7.org/linux/man-pages/man7/signal-safety.7.html
+    //
+    // The C implementation is apparently fine in practice, but we rather execute these
+    // operations in a separate thread to side-step any issues. For very small inputs this
+    // does have a measurable (~5%) performance impact.
     let config = config.clone();
     std::thread::Builder::new()
         .name("ctrl-c listener".to_owned())
