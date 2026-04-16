@@ -580,21 +580,13 @@ fn mainQSort3(
                 sp += 1;
             } else {
                 let n = Ord::min(ltLo - lo, unLo - ltLo);
-                let mut yyp1: i32 = lo;
-                let mut yyp2: i32 = unLo - n;
-                for _ in 0..n {
+                for (yyp1, yyp2) in (lo..lo + n).zip(unLo - n..unLo) {
                     ptr.swap(yyp1 as usize, yyp2 as usize);
-                    yyp1 += 1;
-                    yyp2 += 1;
                 }
 
                 let m = Ord::min(hi - gtHi, gtHi - unHi);
-                let mut yyp1_0: i32 = unLo;
-                let mut yyp2_0: i32 = hi - m + 1;
-                for _ in 0..m {
-                    ptr.swap(yyp1_0 as usize, yyp2_0 as usize);
-                    yyp1_0 += 1;
-                    yyp2_0 += 1;
+                for (yyp1, yyp2) in (unLo..unLo + m).zip(hi - m + 1..hi + 1) {
+                    ptr.swap(yyp1 as usize, yyp2 as usize);
                 }
 
                 let n = lo + unLo - ltLo - 1;
