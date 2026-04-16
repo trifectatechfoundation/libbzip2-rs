@@ -516,9 +516,6 @@ fn mainQSort3(
     let mut unHi: i32;
     let mut ltLo: i32;
     let mut gtHi: i32;
-    let mut n: i32;
-    let mut m: i32;
-    let mut med: i32;
 
     let mut stack = [(0i32, 0i32, 0u32); 100];
 
@@ -538,7 +535,7 @@ fn mainQSort3(
                 return;
             }
         } else {
-            med = median_of_3(
+            let med = median_of_3(
                 block[(ptr[lo as usize]).wrapping_add(d) as usize],
                 block[(ptr[hi as usize]).wrapping_add(d) as usize],
                 block[((ptr[((lo + hi) >> 1) as usize]).wrapping_add(d) as isize) as usize],
@@ -549,7 +546,7 @@ fn mainQSort3(
             unHi = gtHi;
             loop {
                 while unLo <= unHi {
-                    n = block[(ptr[unLo as usize]).wrapping_add(d) as usize] as i32 - med;
+                    let n = block[(ptr[unLo as usize]).wrapping_add(d) as usize] as i32 - med;
                     match n.cmp(&0) {
                         Ordering::Greater => break,
                         Ordering::Equal => {
@@ -561,7 +558,7 @@ fn mainQSort3(
                     }
                 }
                 while unLo <= unHi {
-                    n = block[(ptr[unHi as usize]).wrapping_add(d) as usize] as i32 - med;
+                    let n = block[(ptr[unHi as usize]).wrapping_add(d) as usize] as i32 - med;
                     match n.cmp(&0) {
                         Ordering::Less => break,
                         Ordering::Equal => {
@@ -583,7 +580,7 @@ fn mainQSort3(
                 stack[sp] = (lo, hi, d + 1);
                 sp += 1;
             } else {
-                n = Ord::min(ltLo - lo, unLo - ltLo);
+                let n = Ord::min(ltLo - lo, unLo - ltLo);
                 let mut yyp1: i32 = lo;
                 let mut yyp2: i32 = unLo - n;
                 for _ in 0..n {
@@ -592,7 +589,7 @@ fn mainQSort3(
                     yyp2 += 1;
                 }
 
-                m = Ord::min(hi - gtHi, gtHi - unHi);
+                let m = Ord::min(hi - gtHi, gtHi - unHi);
                 let mut yyp1_0: i32 = unLo;
                 let mut yyp2_0: i32 = hi - m + 1;
                 for _ in 0..m {
@@ -601,8 +598,8 @@ fn mainQSort3(
                     yyp2_0 += 1;
                 }
 
-                n = lo + unLo - ltLo - 1;
-                m = hi - (gtHi - unHi) + 1;
+                let n = lo + unLo - ltLo - 1;
+                let m = hi - (gtHi - unHi) + 1;
 
                 let mut next = [(lo, n, d), (m, hi, d), (n + 1, m - 1, d + 1)];
 
