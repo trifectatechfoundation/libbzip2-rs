@@ -517,6 +517,7 @@ fn mainQSort3(
     let mut ltLo: i32;
     let mut gtHi: i32;
 
+    // We run into underflow issues below if lo and hi use u32.
     let mut stack = [(0i32, 0i32, 0u32); 100];
 
     stack[0] = (loSt, hiSt, dSt);
@@ -636,7 +637,6 @@ fn mainSort(
     let mut copyStart: [i32; 256] = [0; 256];
     let mut copyEnd: [i32; 256] = [0; 256];
     let mut c1: u8;
-    let mut numQSorted: i32;
     let mut s: u16;
     if verb >= 4 {
         debug_logln!("        main sort initialise ...");
@@ -714,7 +714,7 @@ fn mainSort(
        The main sorting loop.
     --*/
 
-    numQSorted = 0;
+    let mut numQSorted = 0;
 
     for i in 0..255 + 1 {
         /*--
@@ -740,8 +740,9 @@ fn mainSort(
             if j != ss {
                 sb = (ss << 8) + j;
                 if ftab[sb as usize] & SETMASK == 0 {
-                    let lo: i32 = (ftab[sb as usize] & CLEARMASK) as i32;
-                    let hi: i32 = ((ftab[sb as usize + 1] & CLEARMASK).wrapping_sub(1)) as i32;
+                    // It is tempting to use u32 instead, but -1/u32::MAX is actually used.
+                    let lo = (ftab[sb as usize] & CLEARMASK) as i32;
+                    let hi = ((ftab[sb as usize + 1] & CLEARMASK).wrapping_sub(1)) as i32;
 
                     if hi > lo {
                         if verb >= 4 {
@@ -891,7 +892,7 @@ fn mainSort(
             "        {} pointers, {} sorted, {} scanned",
             nblock,
             numQSorted,
-            nblock as i32 - numQSorted,
+            nblock - numQSorted as usize,
         );
     }
 }
