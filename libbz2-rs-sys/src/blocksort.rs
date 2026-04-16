@@ -539,15 +539,14 @@ fn mainQSort3(
                 block[(ptr[lo as usize]).wrapping_add(d) as usize],
                 block[(ptr[hi as usize]).wrapping_add(d) as usize],
                 block[((ptr[((lo + hi) >> 1) as usize]).wrapping_add(d) as isize) as usize],
-            ) as i32;
+            );
             ltLo = lo;
             unLo = ltLo;
             gtHi = hi;
             unHi = gtHi;
             loop {
                 while unLo <= unHi {
-                    let n = block[(ptr[unLo as usize]).wrapping_add(d) as usize] as i32 - med;
-                    match n.cmp(&0) {
+                    match u8::cmp(&block[(ptr[unLo as usize]).wrapping_add(d) as usize], &med) {
                         Ordering::Greater => break,
                         Ordering::Equal => {
                             ptr.swap(unLo as usize, ltLo as usize);
@@ -558,8 +557,7 @@ fn mainQSort3(
                     }
                 }
                 while unLo <= unHi {
-                    let n = block[(ptr[unHi as usize]).wrapping_add(d) as usize] as i32 - med;
-                    match n.cmp(&0) {
+                    match u8::cmp(&block[(ptr[unHi as usize]).wrapping_add(d) as usize], &med) {
                         Ordering::Less => break,
                         Ordering::Equal => {
                             ptr.swap(unHi as usize, gtHi as usize);
