@@ -298,12 +298,7 @@ fn main_help(program_name: &Path, in_filename: &Path) -> Result<(), Error> {
 
     bits_read = 0;
 
-    loop {
-        let Some(b) = input_bitstream.get_bit()? else {
-            // EOF
-            break;
-        };
-
+    while let Some(b) = input_bitstream.get_bit()? {
         buff_hi = (buff_hi << 1) | (buff_lo >> 31);
         buff_lo = (buff_lo << 1) | b as u32;
 
