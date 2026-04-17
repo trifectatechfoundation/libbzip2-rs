@@ -8,7 +8,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 license = "bzip2-1.0.6"
 repository = "https://github.com/trifectatechfoundation/libbzip2-rs"
@@ -24,7 +24,7 @@ libc = "0.2"
 [workspace.dependencies.libbz2-rs-sys]
 path = "libbz2-rs-sys/"
 default-features = false
-version = "0.2.2"
+version = "0.2.3"
 
 [profile.relwithdebinfo]
 inherits = "release"
