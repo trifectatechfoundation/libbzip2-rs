@@ -1973,6 +1973,10 @@ pub unsafe extern "C" fn BZ2_bzBuffToBuffCompress(
         return ReturnCode::BZ_PARAM_ERROR as c_int;
     }
 
+    if !(0..=4).contains(&verbosity) {
+        return ReturnCode::BZ_PARAM_ERROR as c_int;
+    }
+
     let Some(destLen) = (unsafe { destLen.as_mut() }) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
     };

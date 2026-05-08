@@ -3,7 +3,7 @@
 #![allow(clippy::manual_c_str_literals)]
 
 use std::{
-    ffi::{c_char, c_int, c_void, CStr},
+    ffi::{c_char, c_int, c_uint, c_void, CStr},
     mem::MaybeUninit,
     path::{Path, PathBuf},
 };
@@ -24,6 +24,7 @@ macro_rules! assert_eq_rs_c {
     ($tt:tt) => {{
         #[cfg(not(miri))]
         #[allow(clippy::macro_metavars_in_unsafe)]
+        #[allow(unused_unsafe)]
         let _ng = unsafe {
             use bzip2_sys::*;
             use compress_c as compress;
@@ -31,10 +32,23 @@ macro_rules! assert_eq_rs_c {
             use decompress_c as decompress;
             use decompress_c_with_capacity as decompress_with_capacity;
 
+            extern "C" {
+                fn BZ2_bzBuffToBuffCompress(
+                    dest: *mut c_char,
+                    destLen: *mut c_uint,
+                    source: *mut c_char,
+                    sourceLen: c_uint,
+                    blockSize100k: c_int,
+                    verbosity: c_int,
+                    workFactor: c_int,
+                ) -> c_int;
+            }
+
             $tt
         };
 
         #[allow(clippy::macro_metavars_in_unsafe)]
+        #[allow(unused_unsafe)]
         let _rs = unsafe {
             use compress_rs as compress;
             use compress_rs_with_capacity as compress_with_capacity;
@@ -1553,4 +1567,39 @@ fn orig_ptr_bounds_check_off_by_1() {
     if err_c == libbz2_rs_sys::BZ_OK {
         assert_eq!(dest_c, dest_rs);
     }
+}
+
+#[test]
+fn buf_to_buf_compress_verbosity() {
+    assert_eq_rs_c!({
+        fn compress_buf(input: &[u8], verbosity: c_int) -> c_int {
+            let mut dest = [0u8; 1024];
+            let mut dest_len = dest.len() as u32;
+            unsafe {
+                BZ2_bzBuffToBuffCompress(
+                    dest.as_mut_ptr().cast(),
+                    &mut dest_len,
+                    input.as_ptr().cast_mut().cast(),
+                    input.len() as u32,
+                    1,
+                    verbosity,
+                    0,
+                )
+            }
+        }
+
+        // Values 0-4 are accepted.
+        let input = b"hello world";
+        for v in 0..=4 {
+            let ret = compress_buf(input, v);
+            assert_eq!(ret, BZ_OK, "verbosity {v} should be valid");
+        }
+
+        // Anything else is rejected.
+        let input = b"hello world";
+        for v in [-1, 5, i32::MIN, i32::MAX] {
+            let ret = compress_buf(input, v);
+            assert_eq!(ret, BZ_PARAM_ERROR, "verbosity {v} should be invalid");
+        }
+    })
 }
