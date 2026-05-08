@@ -717,10 +717,9 @@ unsafe fn BZ2_bzReadOpenHelp(
 /// [`pointer::as_mut`]: https://doc.rust-lang.org/core/primitive.pointer.html#method.as_mut
 #[export_name = prefix!(BZ2_bzReadClose)]
 pub unsafe extern "C" fn BZ2_bzReadClose(bzerror: *mut c_int, b: *mut BZFILE) {
-    BZ2_bzReadCloseHelp(bzerror.as_mut(), b.as_mut())
-}
+    let mut bzerror = bzerror.as_mut();
+    let mut b = b.as_mut();
 
-unsafe fn BZ2_bzReadCloseHelp(mut bzerror: Option<&mut c_int>, mut b: Option<&mut BZFILE>) {
     BZ_SETERR_RAW!(bzerror, b, ReturnCode::BZ_OK);
 
     let Some(bzf) = b else {
@@ -1194,23 +1193,22 @@ pub unsafe extern "C" fn BZ2_bzflush(mut _b: *mut BZFILE) -> c_int {
 ///     - `b` is initialized with [`BZ2_bzReadOpen`] or [`BZ2_bzWriteOpen`]
 #[export_name = prefix!(BZ2_bzclose)]
 pub unsafe extern "C" fn BZ2_bzclose(b: *mut BZFILE) {
-    BZ2_bzcloseHelp(b.as_mut())
-}
-
-unsafe fn BZ2_bzcloseHelp(mut b: Option<&mut BZFILE>) {
     let mut bzerr: c_int = 0;
 
-    let operation = if let Some(bzf) = &mut b {
-        bzf.operation
-    } else {
+    if b.is_null() {
         return;
-    };
+    }
+
+    let operation = (*b).operation;
+    let handle = (*b).handle;
 
     match operation {
         Operation::Reading => {
-            BZ2_bzReadCloseHelp(Some(&mut bzerr), b.as_deref_mut());
+            BZ2_bzReadClose(&raw mut bzerr, b);
         }
         Operation::Writing => {
+            let mut b = b.as_mut();
+
             BZ2_bzWriteCloseHelp(Some(&mut bzerr), b.as_deref_mut(), false as i32, None, None);
             if bzerr != 0 {
                 BZ2_bzWriteCloseHelp(None, b.as_deref_mut(), true as i32, None, None);
@@ -1218,10 +1216,8 @@ unsafe fn BZ2_bzcloseHelp(mut b: Option<&mut BZFILE>) {
         }
     }
 
-    if let Some(bzf) = b {
-        if bzf.handle != STDIN!() && bzf.handle != STDOUT!() {
-            fclose(bzf.handle);
-        }
+    if handle != STDIN!() && handle != STDOUT!() {
+        fclose(handle);
     }
 }
 
@@ -1381,6 +1377,36 @@ mod tests {
                 assert_eq!(return_code as i32, errnum);
             } else {
                 assert_eq!(0, errnum);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(miri)]
+    fn bzclose_read() {
+        let Some(allocator) = Allocator::DEFAULT else {
+            return;
+        };
+
+        {
+            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzerr: c_int = 0;
+
+            unsafe {
+                (*bzf_ptr).operation = Operation::Reading;
+                (*bzf_ptr).initialisedOk = false;
+                BZ2_bzReadClose(&raw mut bzerr, bzf_ptr);
+            }
+        }
+
+        {
+            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzerr: c_int = 0;
+
+            unsafe {
+                (*bzf_ptr).operation = Operation::Reading;
+                (*bzf_ptr).initialisedOk = false;
+                BZ2_bzclose(bzf_ptr);
             }
         }
     }
