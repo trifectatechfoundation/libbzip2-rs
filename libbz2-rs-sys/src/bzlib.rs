@@ -1596,7 +1596,7 @@ pub(crate) fn index_into_f(index: u32, cftab: &[u32; 257]) -> u8 {
 
 macro_rules! GET_LL4 {
     ($s:expr, $i:expr) => {
-        $s.ll4.as_slice()[($s.tPos >> 1) as usize] as u32 >> ($s.tPos << 2 & 0x4) & 0xf
+        $s.ll4.as_slice()[($s.tPos >> 1) as usize] as u32 >> ($i << 2 & 0x4) & 0xf
     };
 }
 
