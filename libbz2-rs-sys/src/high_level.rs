@@ -976,11 +976,11 @@ unsafe fn bzopen_or_bzdopen(path: Option<&CStr>, open_mode: OpenMode, mode: &CSt
     let mode = match open_mode {
         OpenMode::Pointer => match operation {
             Operation::Reading => b"rbe\0".as_slice(),
-            Operation::Writing => b"rbe\0".as_slice(),
+            Operation::Writing => b"wbe\0".as_slice(),
         },
         OpenMode::FileDescriptor(_) => match operation {
             Operation::Reading => b"rb\0".as_slice(),
-            Operation::Writing => b"rb\0".as_slice(),
+            Operation::Writing => b"wb\0".as_slice(),
         },
     };
 
