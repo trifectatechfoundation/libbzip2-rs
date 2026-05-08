@@ -1458,6 +1458,78 @@ mod high_level_interface {
         // so it does not get dropped prematurely
         drop(path_as_cstring);
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn bzopen_write_new_file() {
+        // BZ2_bzopen in write mode must be able to create a new file.
+        let p = std::env::temp_dir().join("bzopen_write_new_file_test.bz2");
+
+        let path_cstr = format!("{}\0", p.display());
+        let path = path_cstr.as_ptr().cast::<c_char>();
+
+        let ptr = unsafe { libbz2_rs_sys::BZ2_bzopen(path, WB_MODE) };
+        assert!(
+            !ptr.is_null(),
+            "BZ2_bzopen in write mode should create a new file"
+        );
+
+        let data = b"hello world";
+        let mut bzerr: c_int = 0;
+        unsafe {
+            libbz2_rs_sys::BZ2_bzWrite(
+                &mut bzerr,
+                ptr,
+                data.as_ptr() as *const c_void,
+                data.len() as c_int,
+            )
+        };
+        assert_eq!(bzerr, libbz2_rs_sys::BZ_OK, "BZ2_bzWrite should succeed");
+
+        unsafe { libbz2_rs_sys::BZ2_bzclose(ptr) };
+
+        // The file should exist and be non-empty.
+        let meta = std::fs::metadata(&p).unwrap();
+        assert_ne!(meta.len(), 0);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn bzdopen_write_new_file() {
+        use std::os::fd::IntoRawFd;
+
+        // BZ2_bzdopen in write mode must be able to write to a file descriptor.
+        let p = std::env::temp_dir().join("bzdopen_write_new_file_test.bz2");
+
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&p)
+            .unwrap();
+        let fd = file.into_raw_fd();
+
+        let ptr = unsafe { libbz2_rs_sys::BZ2_bzdopen(fd, WB_MODE) };
+        assert!(!ptr.is_null(), "BZ2_bzdopen in write mode should succeed");
+
+        let data = b"hello world";
+        let mut bzerr: c_int = 0;
+        unsafe {
+            libbz2_rs_sys::BZ2_bzWrite(
+                &mut bzerr,
+                ptr,
+                data.as_ptr() as *const c_void,
+                data.len() as c_int,
+            )
+        };
+        assert_eq!(bzerr, libbz2_rs_sys::BZ_OK, "BZ2_bzWrite should succeed");
+
+        unsafe { libbz2_rs_sys::BZ2_bzclose(ptr) };
+
+        // The file should exist and be non-empty.
+        let meta = std::fs::metadata(&p).unwrap();
+        assert_ne!(meta.len(), 0);
+    }
 }
 
 #[test]
