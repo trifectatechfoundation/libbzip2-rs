@@ -87,7 +87,7 @@ macro_rules! prefix {
 
 pub(crate) use prefix;
 
-/// The version of the zlib library.
+/// The version of the libbzip2-rs-sys library.
 ///
 /// Its value is a pointer to a NULL-terminated sequence of bytes.
 ///
@@ -95,8 +95,8 @@ pub(crate) use prefix;
 #[doc = libbz2_rs_sys_version!()]
 /// `:
 ///
-/// - The first component is the version of stock zlib that this release is compatible with
-/// - The final component is the zlib-rs version used to build this release.
+/// - The first component is the version of stock bzip2 that this release is compatible with
+/// - The final component is the libbzip2-rs-sys version used to build this release.
 #[cfg_attr(feature = "export-symbols", export_name = prefix!(BZ2_bzlibVersion))]
 #[cfg(feature = "stdio")]
 pub const extern "C" fn BZ2_bzlibVersion() -> *const core::ffi::c_char {
