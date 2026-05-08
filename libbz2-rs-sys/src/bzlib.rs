@@ -322,7 +322,7 @@ mod stream {
                 return None;
             }
 
-            let read = unsafe { *(self.next_in as *mut u8) };
+            let read = unsafe { self.next_in.cast::<u8>().read() };
             bit_buffer <<= 8;
             bit_buffer |= u64::from(read);
 
@@ -339,7 +339,7 @@ mod stream {
             if self.avail_in == 0 {
                 return None;
             }
-            let b = unsafe { *(self.next_in as *mut u8) };
+            let b = unsafe { self.next_in.cast::<u8>().read() };
             self.next_in = unsafe { (self.next_in).offset(1) };
             self.avail_in -= 1;
             self.total_in_lo32 = (self.total_in_lo32).wrapping_add(1);
