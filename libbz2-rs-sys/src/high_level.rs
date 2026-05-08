@@ -361,7 +361,7 @@ unsafe fn BZ2_bzWriteHelp(
 /// # Possible assignments to `bzerror`
 ///
 /// - [`BZ_CONFIG_ERROR`] if no default allocator is configured
-/// - [`BZ_SEQUENCE_ERROR`] if b was opened with [`BZ2_bzWriteOpen`]
+/// - [`BZ_SEQUENCE_ERROR`] if b was opened with [`BZ2_bzReadOpen`]
 /// - [`BZ_IO_ERROR`] if there is an error writing to the compressed file
 /// - [`BZ_OK`] otherwise
 ///
@@ -418,7 +418,7 @@ unsafe fn BZ2_bzWriteCloseHelp(
 /// # Possible assignments to `bzerror`
 ///
 /// - [`BZ_CONFIG_ERROR`] if no default allocator is configured
-/// - [`BZ_SEQUENCE_ERROR`] if b was opened with [`BZ2_bzWriteOpen`]
+/// - [`BZ_SEQUENCE_ERROR`] if b was opened with [`BZ2_bzReadOpen`]
 /// - [`BZ_IO_ERROR`] if there is an error writing to the compressed file
 /// - [`BZ_OK`] otherwise
 ///
