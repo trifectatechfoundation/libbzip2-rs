@@ -510,6 +510,7 @@ unsafe fn BZ2_bzWriteClose64Help(
                         );
                         if n1 != n2 || ferror(bzf.handle) != 0 {
                             BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_IO_ERROR);
+                            return;
                         }
                     }
 
