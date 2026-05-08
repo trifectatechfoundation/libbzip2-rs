@@ -387,7 +387,7 @@ pub unsafe extern "C" fn BZ2_bzWriteClose(
 ) {
     BZ2_bzWriteCloseHelp(
         bzerror.as_mut(),
-        b.as_mut(),
+        b,
         abandon,
         nbytes_in.as_mut(),
         nbytes_out.as_mut(),
@@ -396,7 +396,7 @@ pub unsafe extern "C" fn BZ2_bzWriteClose(
 
 unsafe fn BZ2_bzWriteCloseHelp(
     bzerror: Option<&mut c_int>,
-    b: Option<&mut BZFILE>,
+    b: *mut BZFILE,
     abandon: c_int,
     nbytes_in: Option<&mut c_uint>,
     nbytes_out: Option<&mut c_uint>,
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
 ) {
     BZ2_bzWriteClose64Help(
         bzerror.as_mut(),
-        b.as_mut(),
+        b,
         abandon,
         nbytes_in_lo32.as_mut(),
         nbytes_in_hi32.as_mut(),
@@ -459,13 +459,14 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
 
 unsafe fn BZ2_bzWriteClose64Help(
     mut bzerror: Option<&mut c_int>,
-    mut b: Option<&mut BZFILE>,
+    b: *mut BZFILE,
     abandon: c_int,
     mut nbytes_in_lo32: Option<&mut c_uint>,
     mut nbytes_in_hi32: Option<&mut c_uint>,
     mut nbytes_out_lo32: Option<&mut c_uint>,
     mut nbytes_out_hi32: Option<&mut c_uint>,
 ) {
+    let mut b = b.as_mut();
     let Some(bzf) = b else {
         BZ_SETERR_RAW!(bzerror, b, ReturnCode::BZ_PARAM_ERROR);
         return;
@@ -476,7 +477,8 @@ unsafe fn BZ2_bzWriteClose64Help(
         return;
     }
 
-    if ferror(bzf.handle) != 0 {
+    #[cfg(not(miri))]
+    if !bzf.handle.is_null() && ferror(bzf.handle) != 0 {
         BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_IO_ERROR);
         return;
     }
@@ -991,13 +993,13 @@ unsafe fn bzopen_or_bzdopen(path: Option<&CStr>, open_mode: OpenMode, mode: &CSt
         Operation::Writing => STDOUT!(),
     };
 
-    let fp = match open_mode {
+    let (fp, close_handle) = match open_mode {
         OpenMode::Pointer => match path {
-            None => default_file,
-            Some(path) if path.is_empty() => default_file,
-            Some(path) => fopen(path.as_ptr(), mode2),
+            None => (default_file, false),
+            Some(path) if path.is_empty() => (default_file, false),
+            Some(path) => (fopen(path.as_ptr(), mode2), true),
         },
-        OpenMode::FileDescriptor(fd) => fdopen(fd, mode2),
+        OpenMode::FileDescriptor(fd) => (fdopen(fd, mode2), true),
     };
 
     if fp.is_null() {
@@ -1023,7 +1025,7 @@ unsafe fn bzopen_or_bzdopen(path: Option<&CStr>, open_mode: OpenMode, mode: &CSt
     };
 
     if bzfp.is_null() {
-        if fp != STDIN!() && fp != STDOUT!() {
+        if close_handle {
             fclose(fp);
         }
         return ptr::null_mut();
@@ -1207,16 +1209,14 @@ pub unsafe extern "C" fn BZ2_bzclose(b: *mut BZFILE) {
             BZ2_bzReadClose(&raw mut bzerr, b);
         }
         Operation::Writing => {
-            let mut b = b.as_mut();
-
-            BZ2_bzWriteCloseHelp(Some(&mut bzerr), b.as_deref_mut(), false as i32, None, None);
+            BZ2_bzWriteCloseHelp(Some(&mut bzerr), b, false as i32, None, None);
             if bzerr != 0 {
-                BZ2_bzWriteCloseHelp(None, b.as_deref_mut(), true as i32, None, None);
+                BZ2_bzWriteCloseHelp(None, b, true as i32, None, None);
             }
         }
     }
 
-    if handle != STDIN!() && handle != STDOUT!() {
+    if !handle.is_null() && handle != STDIN!() && handle != STDOUT!() {
         fclose(handle);
     }
 }
@@ -1382,7 +1382,44 @@ mod tests {
     }
 
     #[test]
-    #[cfg(miri)]
+    fn bzclose_write() {
+        let Some(allocator) = Allocator::DEFAULT else {
+            return;
+        };
+
+        {
+            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzerr: c_int = 0;
+
+            unsafe {
+                (*bzf_ptr).operation = Operation::Writing;
+                (*bzf_ptr).initialisedOk = false;
+                (*bzf_ptr).handle = core::ptr::null_mut();
+                BZ2_bzWriteClose64(
+                    &raw mut bzerr,
+                    bzf_ptr,
+                    1, // abandon
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+        }
+
+        {
+            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+
+            unsafe {
+                (*bzf_ptr).operation = Operation::Writing;
+                (*bzf_ptr).initialisedOk = false;
+                (*bzf_ptr).handle = core::ptr::null_mut();
+                BZ2_bzclose(bzf_ptr);
+            }
+        }
+    }
+
+    #[test]
     fn bzclose_read() {
         let Some(allocator) = Allocator::DEFAULT else {
             return;
@@ -1401,7 +1438,6 @@ mod tests {
 
         {
             let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
-            let mut bzerr: c_int = 0;
 
             unsafe {
                 (*bzf_ptr).operation = Operation::Reading;
