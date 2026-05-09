@@ -1603,3 +1603,53 @@ fn buf_to_buf_compress_verbosity() {
         }
     })
 }
+
+#[test]
+fn decompress_small_mode_ll4_alloc_failure_no_leak() {
+    use libbz2_rs_sys::*;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    // We allocate DState, ll16, ll4. Test that when the ll4 allocation fails, the other
+    // allocations are deallocated with Miri.
+    static CALL: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn alloc(_: *mut c_void, n: c_int, size: c_int) -> *mut c_void {
+        if CALL.fetch_add(1, Relaxed) >= 2 {
+            std::ptr::null_mut()
+        } else {
+            unsafe { libc::calloc(n as _, size as _) }
+        }
+    }
+
+    unsafe extern "C" fn free(_: *mut c_void, ptr: *mut c_void) {
+        unsafe { libc::free(ptr) }
+    }
+
+    let mut strm: bz_stream = bz_stream {
+        next_in: std::ptr::null_mut::<libc::c_char>(),
+        avail_in: 0,
+        total_in_lo32: 0,
+        total_in_hi32: 0,
+        next_out: std::ptr::null_mut::<libc::c_char>(),
+        avail_out: 0,
+        total_out_lo32: 0,
+        total_out_hi32: 0,
+        state: std::ptr::null_mut::<libc::c_void>(),
+        bzalloc: Some(alloc),
+        bzfree: Some(free),
+        opaque: std::ptr::null_mut::<libc::c_void>(),
+    };
+
+    let ret = unsafe { BZ2_bzDecompressInit(&mut strm, 0, 1) };
+    assert_eq!(ret, BZ_OK);
+
+    let input = b"BZh1";
+    let mut output = [0u8; 64];
+    strm.next_in = input.as_ptr().cast();
+    strm.avail_in = input.len() as _;
+    strm.next_out = output.as_mut_ptr().cast();
+    strm.avail_out = output.len() as _;
+
+    assert_eq!(unsafe { BZ2_bzDecompress(&mut strm) }, BZ_MEM_ERROR);
+    assert_eq!(unsafe { BZ2_bzDecompressEnd(&mut strm) }, BZ_OK);
+}
