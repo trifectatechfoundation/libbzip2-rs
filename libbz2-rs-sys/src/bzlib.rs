@@ -1058,7 +1058,7 @@ impl TryFrom<i32> for Action {
 ///     - after [`BZ2_bzCompressEnd`]
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
-///     - `strm.s.is_null()`
+///     - `strm.state.is_null()`
 ///     - action is not one of [`BZ_RUN`], [`BZ_FLUSH`] or [`BZ_FINISH`]
 /// - [`BZ_RUN_OK`] successfully compressed, but ran out of input or output space
 /// - [`BZ_FLUSH_OK`] not all compressed data has been written to the output yet
@@ -1173,7 +1173,7 @@ fn compress_loop(strm: &mut BzStream<EState>, s: &mut EState, action: i32) -> Re
 ///
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
-///     - `strm.s.is_null()`
+///     - `strm.state.is_null()`
 ///     - no [valid allocator](bz_stream#custom-allocators) could be configured
 /// - [`BZ_OK`] otherwise
 ///
@@ -1766,7 +1766,7 @@ fn un_rle_obuf_to_output_small(strm: &mut BzStream<DState>, s: &mut DState) -> b
 ///
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
-///     - `strm.s.is_null()`
+///     - `strm.state.is_null()`
 ///     - `strm.avail_out < 1`
 /// - [`BZ_DATA_ERROR`] if a data integrity error is detected in the compressed stream
 /// - [`BZ_DATA_ERROR_MAGIC`] if the compressed stream doesn't begin with the right magic bytes
@@ -1879,7 +1879,7 @@ pub(crate) fn BZ2_bzDecompressHelp(strm: &mut BzStream<DState>) -> ReturnCode {
 ///
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
-///     - `strm.s.is_null()`
+///     - `strm.state.is_null()`
 ///     - no [valid allocator](bz_stream#custom-allocators) could be configured
 /// - [`BZ_OK`] otherwise
 ///
