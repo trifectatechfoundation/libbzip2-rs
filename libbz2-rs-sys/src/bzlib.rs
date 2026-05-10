@@ -804,7 +804,7 @@ pub(crate) fn BZ2_bzCompressInitHelp(
     let arr1_len = n as usize;
     let arr1 = Arr1::alloc(&allocator, arr1_len);
 
-    let arr2_len = n as usize + (2 + 12 + 18 + 2);
+    let arr2_len = n as usize + BZ_N_OVERSHOOT;
     let arr2 = Arr2::alloc(&allocator, arr2_len);
 
     let ftab = Ftab::alloc(&allocator);
