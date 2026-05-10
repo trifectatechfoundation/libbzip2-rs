@@ -2083,7 +2083,7 @@ pub unsafe extern "C" fn BZ2_bzBuffToBuffDecompress(
     small: c_int,
     verbosity: c_int,
 ) -> c_int {
-    if dest.is_null() || destLen.is_null() || source.is_null() {
+    if dest.is_null() || source.is_null() {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
     }
 
