@@ -1653,3 +1653,33 @@ fn decompress_small_mode_ll4_alloc_failure_no_leak() {
     assert_eq!(unsafe { BZ2_bzDecompress(&mut strm) }, BZ_MEM_ERROR);
     assert_eq!(unsafe { BZ2_bzDecompressEnd(&mut strm) }, BZ_OK);
 }
+
+#[test]
+fn decompress_zero_avail_out() {
+    assert_eq_rs_c!({
+        // compressed b"hello world"
+        let mut compressed = [
+            0x42u8, 0x5a, 0x68, 0x31, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0x44, 0xf7, 0x13, 0x78,
+            0x00, 0x00, 0x01, 0x91, 0x80, 0x40, 0x00, 0x06, 0x44, 0x90, 0x80, 0x20, 0x00, 0x22,
+            0x03, 0x34, 0x84, 0x30, 0x21, 0xb6, 0x81, 0x54, 0x27, 0x8b, 0xb9, 0x22, 0x9c, 0x28,
+            0x48, 0x22, 0x7b, 0x89, 0xbc, 0x00,
+        ];
+
+        let mut strm: bz_stream = core::mem::zeroed();
+        let ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
+        assert_eq!(ret, BZ_OK);
+
+        strm.next_in = compressed.as_mut_ptr().cast();
+        strm.avail_in = compressed.len() as _;
+        strm.next_out = core::ptr::null_mut();
+        strm.avail_out = 0;
+
+        // The bzip2 manual documents avail_out == 0 as BZ_PARAM_ERROR, but C does not actually
+        // emit it, and neither do we.
+        let ret = BZ2_bzDecompress(&mut strm);
+        assert_eq!(ret, BZ_OK,);
+        assert_eq!(strm.total_out_lo32, 0);
+
+        BZ2_bzDecompressEnd(&mut strm);
+    })
+}
