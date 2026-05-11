@@ -745,11 +745,14 @@ fn isempty_rl(s: &mut EState) -> bool {
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
 ///     - `!(1..=9).contains(&blockSize100k)`
-///     - `!(0..=4).contains(&verbosity)`
 ///     - `!(0..=250).contains(&workFactor)`
 ///     - no [valid allocator](bz_stream#custom-allocators) could be configured
 /// - [`BZ_MEM_ERROR`] if insufficient memory is available
 /// - [`BZ_OK`] otherwise
+///
+/// Note: unlike [`BZ2_bzDecompressInit`], `verbosity` is not validated. Only values in
+/// `0..=4` have any effect: `0` suppresses all output, and higher values enable
+/// progressively more verbose diagnostic output.
 ///
 /// # Safety
 ///
@@ -1767,13 +1770,16 @@ fn un_rle_obuf_to_output_small(strm: &mut BzStream<DState>, s: &mut DState) -> b
 /// - [`BZ_PARAM_ERROR`] if any of
 ///     - `strm.is_null()`
 ///     - `strm.state.is_null()`
-///     - `strm.avail_out < 1`
 /// - [`BZ_DATA_ERROR`] if a data integrity error is detected in the compressed stream
 /// - [`BZ_DATA_ERROR_MAGIC`] if the compressed stream doesn't begin with the right magic bytes
 /// - [`BZ_MEM_ERROR`] if there wasn't enough memory available
 /// - [`BZ_STREAM_END`] if the logical end of the data stream was detected and all output has been
 ///   written to the output buffer
 /// - [`BZ_OK`] otherwise
+///
+/// Note: the bzip2 manual documents `strm.avail_out < 1` as a [`BZ_PARAM_ERROR`] condition,
+/// but does not actually check for it, and neither do we. Calling with `avail_out == 0`
+/// returns [`BZ_OK`] with no output written; the caller should increase `avail_out` and retry.
 ///
 /// # Safety
 ///
