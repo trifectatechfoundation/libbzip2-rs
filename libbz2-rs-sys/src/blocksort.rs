@@ -864,7 +864,19 @@ fn mainSort(
             let bbStart = ftab[(ss as usize) << 8] & CLEARMASK;
             let bbSize = (ftab[(ss as usize + 1) << 8] & CLEARMASK) as i32 - bbStart as i32;
 
-            let shifts = (bbSize >> 16).count_ones();
+            // FIXME: remove when our MSRV can use the stable method.
+            fn highest_one(x: i32) -> Option<u32> {
+                match x {
+                    0 => None,
+                    _ => Some(i32::BITS - 1 - x.leading_zeros()),
+                }
+            }
+
+            let shifts = if bbSize <= 65_534 {
+                0
+            } else {
+                highest_one(bbSize).unwrap() - 15
+            };
 
             let ptr = &ptr[bbStart as usize..][..bbSize as usize];
             for j in (0..bbSize).rev() {

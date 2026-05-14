@@ -239,6 +239,13 @@ fn compress_sample1() {
 }
 
 #[test]
+fn issue_137() {
+    // Exposed a logic error in blocksort.
+    // See https://github.com/trifectatechfoundation/libbzip2-rs/issues/137.
+    assert_eq_compress!("../../tests/input/issue_137.bin");
+}
+
+#[test]
 fn compress_sample2() {
     assert_eq_compress!("../../tests/input/quick/sample2.bz2");
 }
