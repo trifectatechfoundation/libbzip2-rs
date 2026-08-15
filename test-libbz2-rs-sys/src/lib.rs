@@ -60,6 +60,10 @@ macro_rules! assert_eq_rs_c {
         };
 
         #[cfg(not(miri))]
+        if _rs != _ng {
+            eprintln!("_rs = {:?}", _rs);
+            eprintln!("_ng = {:?}", _ng);
+        }
         assert_eq!(_rs, _ng);
 
         _rs

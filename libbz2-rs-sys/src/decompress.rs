@@ -987,12 +987,8 @@ pub(crate) fn decompress(
                 if logN >= LOG_2MB {
                     error!(BZ_DATA_ERROR);
                 } else {
-                    let mul = match nextSym {
-                        BZ_RUNA => 1,
-                        BZ_RUNB => 2,
-                        _ => 0,
-                    };
-                    es += mul * (1 << logN);
+                    let mul = u32::from(nextSym) + 1;
+                    es += mul << logN;
                     logN += 1;
                     update_group_pos!(s);
                     zn = gMinlen;

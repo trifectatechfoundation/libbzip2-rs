@@ -180,20 +180,29 @@ pub(crate) fn create_decode_tables(
 ) {
     assert!(length.len() <= 258);
 
-    let mut pp = 0;
-    for i in minLen..=maxLen {
-        for (j, e) in length.iter().enumerate() {
-            if *e == i {
-                perm[pp] = j as u16;
-                pp += 1;
-            }
+    let mut count = [0usize; BZ_MAX_CODE_LEN + 1];
+    for &l in length {
+        count[usize::from(l)] += 1;
+    }
+
+    let mut offsets = [0usize; BZ_MAX_CODE_LEN + 1];
+    let mut curr = 0usize;
+    for i in usize::from(minLen)..=usize::from(maxLen) {
+        offsets[i] = curr;
+        curr += count[i];
+    }
+
+    for (j, &e) in length.iter().enumerate() {
+        let len_idx = usize::from(e);
+        if len_idx >= usize::from(minLen) && len_idx <= usize::from(maxLen) {
+            perm[offsets[len_idx]] = j as u16;
+            offsets[len_idx] += 1;
         }
     }
 
     base[0..BZ_MAX_CODE_LEN].fill(0);
-
-    for l in length {
-        base[usize::from(*l) + 1] += 1;
+    for i in 1..=BZ_MAX_CODE_LEN {
+        base[i] = count[i - 1] as i32;
     }
 
     for i in 1..BZ_MAX_CODE_LEN {
