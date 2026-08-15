@@ -4,7 +4,17 @@ use core::{mem, ptr};
 
 use crate::allocator::Allocator;
 use crate::compress::compress_block;
-use crate::crctable::BZ2_CRC32TABLE;
+use crate::crctable::{BZ2_CRC32TABLE, BZ2_CRC32TABLE_4};
+
+macro_rules! BZ_UPDATE_CRC_4 {
+    ($crcVar:expr, $ch:expr) => {{
+        let c = $crcVar ^ (($ch as u32) * 0x01010101);
+        $crcVar = BZ2_CRC32TABLE_4[3][(c >> 24) as usize]
+            ^ BZ2_CRC32TABLE_4[2][((c >> 16) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[1][((c >> 8) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[0][(c & 0xFF) as usize];
+    }};
+}
 use crate::debug_log;
 use crate::decompress::{self, decompress};
 #[cfg(feature = "stdio")]
@@ -1437,21 +1447,17 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
         let mut c_tPos: u32 = s.tPos;
         let mut cs_next_out: *mut c_char = strm.next_out;
         let mut cs_avail_out: c_uint = strm.avail_out;
-        let ro_blockSize100k: u8 = s.blockSize100k;
+        let _ro_blockSize100k: u8 = s.blockSize100k;
         /* end restore */
 
         let avail_out_INIT: u32 = cs_avail_out;
         let s_save_nblockPP: i32 = s.save.nblock as i32 + 1;
-
-        let tt = &s.tt.as_slice()[..100000usize.wrapping_mul(usize::from(ro_blockSize100k))];
+        let tt = s.tt.as_slice();
 
         macro_rules! BZ_GET_FAST_C {
             ($c_tPos:expr) => {
                 match tt.get($c_tPos as usize) {
-                    None => {
-                        // return corrupt if we're past the length of the block
-                        return true;
-                    }
+                    None => return true,
                     Some(&v) => (v >> 8, (v & 0xff) as u8),
                 }
             };
@@ -1472,6 +1478,44 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                 };
             }
 
+            macro_rules! write_two_bytes {
+                ($byte:expr) => {
+                    if cs_avail_out < 2 {
+                        c_state_out_len = 2;
+                        break 'return_notr;
+                    } else {
+                        unsafe {
+                            *(cs_next_out as *mut u8) = $byte;
+                            *(cs_next_out.add(1) as *mut u8) = $byte;
+                        };
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, $byte);
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, $byte);
+                        cs_next_out = unsafe { cs_next_out.add(2) };
+                        cs_avail_out -= 2;
+                    }
+                };
+            }
+
+            macro_rules! write_three_bytes {
+                ($byte:expr) => {
+                    if cs_avail_out < 3 {
+                        c_state_out_len = 3;
+                        break 'return_notr;
+                    } else {
+                        unsafe {
+                            *(cs_next_out as *mut u8) = $byte;
+                            *(cs_next_out.add(1) as *mut u8) = $byte;
+                            *(cs_next_out.add(2) as *mut u8) = $byte;
+                        };
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, $byte);
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, $byte);
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, $byte);
+                        cs_next_out = unsafe { cs_next_out.add(3) };
+                        cs_avail_out -= 3;
+                    }
+                };
+            }
+
             if c_state_out_len > 0 {
                 let bound = Ord::min(cs_avail_out, c_state_out_len);
 
@@ -1480,8 +1524,21 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                     cs_next_out = cs_next_out.add(bound as usize);
                 };
 
-                for _ in 0..bound {
-                    BZ_UPDATE_CRC!(c_calculatedBlockCRC, c_state_out_ch);
+                let mut rem = bound;
+                let ch = c_state_out_ch;
+                while rem >= 16 {
+                    BZ_UPDATE_CRC_4!(c_calculatedBlockCRC, ch);
+                    BZ_UPDATE_CRC_4!(c_calculatedBlockCRC, ch);
+                    BZ_UPDATE_CRC_4!(c_calculatedBlockCRC, ch);
+                    BZ_UPDATE_CRC_4!(c_calculatedBlockCRC, ch);
+                    rem -= 16;
+                }
+                while rem >= 4 {
+                    BZ_UPDATE_CRC_4!(c_calculatedBlockCRC, ch);
+                    rem -= 4;
+                }
+                for _ in 0..rem {
+                    BZ_UPDATE_CRC!(c_calculatedBlockCRC, ch);
                 }
 
                 cs_avail_out -= bound;
@@ -1519,30 +1576,32 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                     continue;
                 }
 
-                c_state_out_len = 2;
                 (c_tPos, k1) = BZ_GET_FAST_C!(c_tPos);
                 c_nblock_used += 1;
 
                 if c_nblock_used == s_save_nblockPP {
-                    continue 'return_notr;
+                    write_two_bytes!(c_state_out_ch);
+                    continue;
                 }
 
                 if k1 != c_k0 {
                     c_k0 = k1;
-                    continue 'return_notr;
+                    write_two_bytes!(c_state_out_ch);
+                    continue;
                 }
 
-                c_state_out_len = 3;
                 (c_tPos, k1) = BZ_GET_FAST_C!(c_tPos);
                 c_nblock_used += 1;
 
                 if c_nblock_used == s_save_nblockPP {
-                    continue 'return_notr;
+                    write_three_bytes!(c_state_out_ch);
+                    continue;
                 }
 
                 if k1 != c_k0 {
                     c_k0 = k1;
-                    continue 'return_notr;
+                    write_three_bytes!(c_state_out_ch);
+                    continue;
                 }
 
                 (c_tPos, k1) = BZ_GET_FAST_C!(c_tPos);

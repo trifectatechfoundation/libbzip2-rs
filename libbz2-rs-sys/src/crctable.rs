@@ -49,3 +49,24 @@ const fn generate_crc32_table(polynomial: u32) -> [u32; 256] {
 
     table
 }
+
+pub(crate) static BZ2_CRC32TABLE_4: [[u32; 256]; 4] = generate_crc32_table_4(POLYNOMIAL);
+
+const fn generate_crc32_table_4(polynomial: u32) -> [[u32; 256]; 4] {
+    let mut table = [[0u32; 256]; 4];
+    table[0] = generate_crc32_table(polynomial);
+
+    let mut k = 1;
+    while k < 4 {
+        let mut i = 0;
+        while i < 256 {
+            let last = table[k - 1][i];
+            let index = (last >> 24) as usize;
+            table[k][i] = (last << 8) ^ table[0][index];
+            i += 1;
+        }
+        k += 1;
+    }
+
+    table
+}
