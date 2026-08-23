@@ -517,7 +517,7 @@ mod decompress_command {
 
         expect_output_failure!(
             output,
-            format!(concat!(
+            concat!(
                 "\n",
                 "bzip2: Data integrity error when decompressing.\n",
                 "\tInput file = (stdin), output file = (stdout)\n",
@@ -528,7 +528,7 @@ mod decompress_command {
                 "You can use the `bzip2recover' program to attempt to recover\n",
                 "data from undamaged sections of corrupted files.\n",
                 "\n",
-            )),
+            ).to_string(),
         );
     }
 
@@ -983,14 +983,14 @@ mod decompress_command {
 
         expect_output_success!(
             output,
-            format!(concat!(
+            concat!(
                 "  (stdin): \n",
-                "    [1: huff+mtf rt+rld {{0xccf1b5a5, 0xccf1b5a5}}]\n",
+                "    [1: huff+mtf rt+rld {0xccf1b5a5, 0xccf1b5a5}]\n",
                 "    combined CRCs: stored = 0xccf1b5a5, computed = 0xccf1b5a5\n",
                 "bzip2: (stdin): trailing garbage after EOF ignored\n",
                 "done\n",
                 ""
-            ),),
+            ).to_string(),
         );
     }
 
