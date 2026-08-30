@@ -211,6 +211,41 @@ pub(crate) fn decompress(
             };
         }
 
+        macro_rules! try_decode_huffman_8bit {
+            ($strm:expr, $s:expr, $gSel:expr) => {{
+                while $s.bsLive < 8 {
+                    if $s.state < State::BZ_X_ENDHDR_2 {
+                        if let Some((bit_buffer, bits_used)) = $strm.pull_u64($s.bsBuff, $s.bsLive)
+                        {
+                            $s.bsBuff = bit_buffer;
+                            $s.bsLive = bits_used;
+                            continue;
+                        }
+                    }
+                    if let Some((bit_buffer, bits_used)) = $strm.pull_u8($s.bsBuff, $s.bsLive) {
+                        $s.bsBuff = bit_buffer;
+                        $s.bsLive = bits_used;
+                    } else {
+                        break;
+                    }
+                }
+                if $s.bsLive >= 8 {
+                    let peek = (($s.bsBuff >> ($s.bsLive - 8)) & 0xff) as usize;
+                    let entry = $s.huffman_lut[usize::from($gSel)][peek];
+                    if entry != 0 {
+                        let sym = (entry >> 16) as u16;
+                        let len = (entry & 0xff) as i32;
+                        $s.bsLive -= len;
+                        Some(sym)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }};
+        }
+
         macro_rules! update_group_pos {
             ($s:expr) => {
                 if groupPos == 0 {
@@ -713,11 +748,14 @@ pub(crate) fn decompress(
                     current_block = Block45;
                 }
                 BZ_X_MTF_1 => {
-                    s.state = State::BZ_X_MTF_1;
-
-                    zvec = GET_BITS!(strm, s, zn as i32) as i32;
-
-                    current_block = Block56;
+                    if let Some(sym) = try_decode_huffman_8bit!(strm, s, gSel) {
+                        nextSym = sym;
+                        current_block = Block40;
+                    } else {
+                        s.state = State::BZ_X_MTF_1;
+                        zvec = GET_BITS!(strm, s, zn as i32) as i32;
+                        current_block = Block56;
+                    }
                 }
                 BZ_X_MTF_2 => {
                     s.state = State::BZ_X_MTF_2;
@@ -728,11 +766,36 @@ pub(crate) fn decompress(
                     current_block = Block56;
                 }
                 BZ_X_MTF_3 => {
-                    s.state = State::BZ_X_MTF_3;
-
-                    zvec = GET_BITS!(strm, s, zn as i32) as i32;
-
-                    current_block = Block52;
+                    if let Some(sym) = try_decode_huffman_8bit!(strm, s, gSel) {
+                        nextSym = sym;
+                        if nextSym == BZ_RUNA || nextSym == BZ_RUNB {
+                            current_block = Block46;
+                        } else {
+                            let uc = s.seqToUnseq[usize::from(s.mtfa[usize::from(s.mtfbase[0])])];
+                            s.unzftab[usize::from(uc)] += es;
+                            match s.smallDecompress {
+                                DecompressMode::Small => {
+                                    match ll16.get_mut(nblock as usize..(nblock + es) as usize) {
+                                        Some(slice) => slice.fill(u16::from(uc)),
+                                        None => error!(BZ_DATA_ERROR),
+                                    };
+                                    nblock += es;
+                                }
+                                DecompressMode::Fast => {
+                                    match tt.get_mut(nblock as usize..(nblock + es) as usize) {
+                                        Some(slice) => slice.fill(u32::from(uc)),
+                                        None => error!(BZ_DATA_ERROR),
+                                    };
+                                    nblock += es;
+                                }
+                            }
+                            current_block = Block40;
+                        }
+                    } else {
+                        s.state = State::BZ_X_MTF_3;
+                        zvec = GET_BITS!(strm, s, zn as i32) as i32;
+                        current_block = Block52;
+                    }
                 }
                 BZ_X_MTF_4 => {
                     s.state = State::BZ_X_MTF_4;
@@ -743,11 +806,14 @@ pub(crate) fn decompress(
                     current_block = Block52;
                 }
                 BZ_X_MTF_5 => {
-                    s.state = State::BZ_X_MTF_5;
-
-                    zvec = GET_BITS!(strm, s, zn as i32) as i32;
-
-                    current_block = Block24;
+                    if let Some(sym) = try_decode_huffman_8bit!(strm, s, gSel) {
+                        nextSym = sym;
+                        current_block = Block40;
+                    } else {
+                        s.state = State::BZ_X_MTF_5;
+                        zvec = GET_BITS!(strm, s, zn as i32) as i32;
+                        current_block = Block24;
+                    }
                 }
                 _ => {
                     s.state = State::BZ_X_MTF_6;
@@ -1162,6 +1228,21 @@ pub(crate) fn decompress(
                             minLen,
                             maxLen,
                         );
+
+                        for peek in 0..256 {
+                            let mut entry = 0u32;
+                            for l in usize::from(minLen)..=usize::min(usize::from(maxLen), 8) {
+                                let zvec = (peek >> (8 - l)) as i32;
+                                if zvec <= s.limit[t][l] {
+                                    let index = zvec - s.base[t][l];
+                                    if let Some(&sym) = s.perm[t].get(index as usize) {
+                                        entry = ((sym as u32) << 16) | (l as u32);
+                                        break;
+                                    }
+                                }
+                            }
+                            s.huffman_lut[t][peek] = entry;
+                        }
                     }
 
                     /*--- Now the MTF values ---*/

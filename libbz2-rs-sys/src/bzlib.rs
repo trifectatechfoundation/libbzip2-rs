@@ -4,7 +4,17 @@ use core::{mem, ptr};
 
 use crate::allocator::Allocator;
 use crate::compress::compress_block;
-use crate::crctable::BZ2_CRC32TABLE;
+use crate::crctable::{BZ2_CRC32TABLE, BZ2_CRC32TABLE_4};
+
+macro_rules! BZ_UPDATE_CRC_4 {
+    ($crcVar:expr, $ch:expr) => {{
+        let c = $crcVar ^ (($ch as u32) * 0x01010101);
+        $crcVar = BZ2_CRC32TABLE_4[3][(c >> 24) as usize]
+            ^ BZ2_CRC32TABLE_4[2][((c >> 16) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[1][((c >> 8) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[0][(c & 0xFF) as usize];
+    }};
+}
 use crate::debug_log;
 use crate::decompress::{self, decompress};
 #[cfg(feature = "stdio")]
@@ -654,6 +664,7 @@ pub(crate) struct DState {
     pub base: [[i32; 258]; 6],
     pub perm: [[u16; 258]; 6],
     pub minLens: [u8; 6],
+    pub huffman_lut: [[u32; 256]; 6],
     pub save: SaveArea,
 }
 
@@ -1345,6 +1356,45 @@ macro_rules! BZ_GET_FAST {
         }
     };
 }
+#[cold]
+#[inline(never)]
+unsafe fn drain_rle_bulk_cold(
+    cs_next_out: &mut *mut libc::c_char,
+    cs_avail_out: &mut u32,
+    c_state_out_len: &mut u32,
+    c_state_out_ch: u8,
+    c_calculatedBlockCRC: &mut u32,
+) {
+    let bound = Ord::min(*cs_avail_out, *c_state_out_len);
+    let ch = c_state_out_ch;
+
+    // SAFETY: `bound` is bounded by `min(*cs_avail_out, *c_state_out_len)`, ensuring
+    // that writing `bound` bytes and advancing `cs_next_out` does not exceed the
+    // caller-allocated output buffer capacity.
+    unsafe {
+        core::ptr::write_bytes(*cs_next_out as *mut u8, ch, bound as usize);
+        *cs_next_out = (*cs_next_out).add(bound as usize);
+    }
+
+    let mut rem = bound;
+    while rem >= 16 {
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        rem -= 16;
+    }
+    while rem >= 4 {
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        rem -= 4;
+    }
+    for _ in 0..rem {
+        BZ_UPDATE_CRC!(*c_calculatedBlockCRC, ch);
+    }
+
+    *cs_avail_out -= bound;
+    *c_state_out_len -= bound;
+}
 
 fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bool {
     let mut k1: u8;
@@ -1473,22 +1523,32 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
             }
 
             if c_state_out_len > 0 {
-                let bound = Ord::min(cs_avail_out, c_state_out_len);
-
-                unsafe {
-                    core::ptr::write_bytes(cs_next_out as *mut u8, c_state_out_ch, bound as usize);
-                    cs_next_out = cs_next_out.add(bound as usize);
-                };
-
-                for _ in 0..bound {
-                    BZ_UPDATE_CRC!(c_calculatedBlockCRC, c_state_out_ch);
-                }
-
-                cs_avail_out -= bound;
-                c_state_out_len -= bound;
-
-                if cs_avail_out == 0 {
-                    break 'return_notr;
+                // Outlined Bulk Fast-Path for runs >= 4 bytes (removes register pressure from hot path)
+                if c_state_out_len >= 4 && cs_avail_out >= 4 {
+                    unsafe {
+                        drain_rle_bulk_cold(
+                            &mut cs_next_out,
+                            &mut cs_avail_out,
+                            &mut c_state_out_len,
+                            c_state_out_ch,
+                            &mut c_calculatedBlockCRC,
+                        );
+                    }
+                    if cs_avail_out == 0 {
+                        break 'return_notr;
+                    }
+                } else {
+                    // Scalar fallback for small runs (1..3 bytes)
+                    while c_state_out_len > 0 {
+                        if cs_avail_out == 0 {
+                            break 'return_notr;
+                        }
+                        unsafe { *(cs_next_out as *mut u8) = c_state_out_ch };
+                        BZ_UPDATE_CRC!(c_calculatedBlockCRC, c_state_out_ch);
+                        cs_next_out = unsafe { cs_next_out.add(1) };
+                        cs_avail_out -= 1;
+                        c_state_out_len -= 1;
+                    }
                 }
             }
 
