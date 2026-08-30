@@ -1162,6 +1162,21 @@ pub(crate) fn decompress(
                             minLen,
                             maxLen,
                         );
+
+                        for peek in 0..256 {
+                            let mut entry = 0u32;
+                            for l in usize::from(minLen)..=usize::min(usize::from(maxLen), 8) {
+                                let zvec = (peek >> (8 - l)) as i32;
+                                if zvec <= s.limit[t][l] {
+                                    let index = zvec - s.base[t][l];
+                                    if let Some(&sym) = s.perm[t].get(index as usize) {
+                                        entry = ((sym as u32) << 16) | (l as u32);
+                                        break;
+                                    }
+                                }
+                            }
+                            s.huffman_lut[t][peek] = entry;
+                        }
                     }
 
                     /*--- Now the MTF values ---*/

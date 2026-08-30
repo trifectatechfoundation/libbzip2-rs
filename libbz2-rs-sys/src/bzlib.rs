@@ -664,6 +664,7 @@ pub(crate) struct DState {
     pub base: [[i32; 258]; 6],
     pub perm: [[u16; 258]; 6],
     pub minLens: [u8; 6],
+    pub huffman_lut: [[u32; 256]; 6],
     pub save: SaveArea,
 }
 
