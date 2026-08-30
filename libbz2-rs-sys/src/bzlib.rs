@@ -4,7 +4,17 @@ use core::{mem, ptr};
 
 use crate::allocator::Allocator;
 use crate::compress::compress_block;
-use crate::crctable::BZ2_CRC32TABLE;
+use crate::crctable::{BZ2_CRC32TABLE, BZ2_CRC32TABLE_4};
+
+macro_rules! BZ_UPDATE_CRC_4 {
+    ($crcVar:expr, $ch:expr) => {{
+        let c = $crcVar ^ (($ch as u32) * 0x01010101);
+        $crcVar = BZ2_CRC32TABLE_4[3][(c >> 24) as usize]
+            ^ BZ2_CRC32TABLE_4[2][((c >> 16) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[1][((c >> 8) & 0xFF) as usize]
+            ^ BZ2_CRC32TABLE_4[0][(c & 0xFF) as usize];
+    }};
+}
 use crate::debug_log;
 use crate::decompress::{self, decompress};
 #[cfg(feature = "stdio")]
@@ -1365,7 +1375,19 @@ unsafe fn drain_rle_bulk_cold(
         *cs_next_out = (*cs_next_out).add(bound as usize);
     }
 
-    for _ in 0..bound {
+    let mut rem = bound;
+    while rem >= 16 {
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        rem -= 16;
+    }
+    while rem >= 4 {
+        BZ_UPDATE_CRC_4!(*c_calculatedBlockCRC, ch);
+        rem -= 4;
+    }
+    for _ in 0..rem {
         BZ_UPDATE_CRC!(*c_calculatedBlockCRC, ch);
     }
 
