@@ -32,7 +32,10 @@ version = "1.0.9" # the bzip2 api version we match
 name = "bz2_rs"
 
 [package.metadata.capi.header]
-enabled = false
+generation = false
+
+[package.metadata.capi.install.include]
+asset = [{from="../bzlib.h"}]
 
 [package.metadata.capi.pkg_config]
 name = "libbz2_rs"
