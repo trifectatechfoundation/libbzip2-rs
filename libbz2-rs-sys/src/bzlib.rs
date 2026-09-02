@@ -546,6 +546,7 @@ impl Arr2 {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn eclass(&mut self) -> &mut [u32] {
         unsafe { core::slice::from_raw_parts_mut(self.ptr, self.len) }
     }
@@ -606,6 +607,7 @@ impl Ftab {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn ftab(&mut self) -> &mut [u32; FTAB_LEN] {
         // NOTE: this panics if the pointer is NULL, that is important!
         unsafe { self.ptr.cast::<[u32; FTAB_LEN]>().as_mut().unwrap() }
