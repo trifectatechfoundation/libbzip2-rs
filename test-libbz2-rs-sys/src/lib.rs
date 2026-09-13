@@ -1690,3 +1690,58 @@ fn decompress_zero_avail_out() {
         BZ2_bzDecompressEnd(&mut strm);
     })
 }
+
+#[test]
+fn test_rle_chunked_streaming_coverage() {
+    assert_eq_rs_c!({
+        let mut raw = Vec::new();
+        for &len in &[1, 2, 3, 4, 5, 7, 15, 16, 17, 31, 32, 33, 64, 128] {
+            raw.resize(raw.len() + len, b'A');
+            raw.resize(raw.len() + len, b'B');
+            raw.resize(raw.len() + len, b'C');
+        }
+
+        let mut compressed = vec![0u8; raw.len() * 2 + 1024];
+        let mut comp_len = compressed.len() as u32;
+        let ret = BZ2_bzBuffToBuffCompress(
+            compressed.as_mut_ptr().cast(),
+            &mut comp_len,
+            raw.as_ptr().cast_mut().cast(),
+            raw.len() as u32,
+            9,
+            0,
+            0,
+        );
+        assert_eq!(ret, BZ_OK);
+        compressed.truncate(comp_len as usize);
+
+        for chunk_size in [1, 2, 3, 5, 7, 16, 32] {
+            let mut strm: bz_stream = core::mem::zeroed();
+            let ret = BZ2_bzDecompressInit(&mut strm, 0, 0);
+            assert_eq!(ret, BZ_OK);
+
+            strm.next_in = compressed.as_mut_ptr().cast();
+            strm.avail_in = compressed.len() as _;
+
+            let mut decompressed = Vec::new();
+            let mut chunk = vec![0u8; chunk_size];
+
+            loop {
+                strm.next_out = chunk.as_mut_ptr().cast();
+                strm.avail_out = chunk.len() as _;
+
+                let ret = BZ2_bzDecompress(&mut strm);
+                let written = chunk.len() - strm.avail_out as usize;
+                decompressed.extend_from_slice(&chunk[..written]);
+
+                if ret == BZ_STREAM_END {
+                    break;
+                }
+                assert_eq!(ret, BZ_OK);
+            }
+
+            assert_eq!(decompressed, raw);
+            assert_eq!(BZ2_bzDecompressEnd(&mut strm), BZ_OK);
+        }
+    })
+}
