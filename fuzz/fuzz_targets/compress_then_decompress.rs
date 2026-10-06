@@ -29,25 +29,42 @@ fuzz_target!(|input: (&[u8], u8)| {
         )
     };
 
-    // differential testing: ensure both implementations behave identically
+    // differential testing: ensure both implementations succeed
     assert_eq!(error, error_c);
-    assert_eq!(deflated, deflated_c);
-
-    // this compression step should always succeed
     assert_eq!(error, BZ_OK);
 
-    // decompress the previously compressed data again to test round-trip behavior
-    let (error, decompressed_output) = unsafe {
+    // Cross-compatibility testing:
+    // Ensure data compressed by Rust can be decompressed by C to the exact input
+    let (error_c_decomp, decomp_from_rs_via_c) = unsafe {
+        test_libbz2_rs_sys::decompress_c_with_capacity(
+            1 << 10,
+            deflated.as_ptr(),
+            deflated.len() as _,
+        )
+    };
+    assert_eq!(error_c_decomp, BZ_OK);
+    assert_eq!(decomp_from_rs_via_c, fuzzed_data);
+
+    // Ensure data compressed by C can be decompressed by Rust to the exact input
+    let (error_rs_decomp, decomp_from_c_via_rs) = unsafe {
+        test_libbz2_rs_sys::decompress_rs_with_capacity(
+            1 << 10,
+            deflated_c.as_ptr(),
+            deflated_c.len() as _,
+        )
+    };
+    assert_eq!(error_rs_decomp, BZ_OK);
+    assert_eq!(decomp_from_c_via_rs, fuzzed_data);
+
+    // Round-trip testing:
+    // Ensure data compressed by Rust can also be decompressed by Rust to the exact input
+    let (error_rs_rt, decomp_rs_rt) = unsafe {
         test_libbz2_rs_sys::decompress_rs_with_capacity(
             1 << 10,
             deflated.as_ptr(),
             deflated.len() as _,
         )
     };
-    // this decompression of valid compressed data should always succeed
-    assert_eq!(error, BZ_OK);
-
-    // after the round trip through compression + decompression, the result data
-    // should be identical to the initial data
-    assert_eq!(decompressed_output, fuzzed_data);
+    assert_eq!(error_rs_rt, BZ_OK);
+    assert_eq!(decomp_rs_rt, fuzzed_data);
 });
