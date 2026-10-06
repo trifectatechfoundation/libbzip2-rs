@@ -304,8 +304,8 @@ fn send_mtf_values(s: &mut EState) {
                 );
             }
 
-            for v in 0..alphaSize {
-                s.len[nPart - 1][v] = if (gs..=ge).contains(&(v as i32)) {
+            for (v, item) in s.len[nPart - 1][..alphaSize].iter_mut().enumerate() {
+                *item = if (gs..=ge).contains(&(v as i32)) {
                     BZ_LESSER_ICOST
                 } else {
                     BZ_GREATER_ICOST
@@ -323,8 +323,8 @@ fn send_mtf_values(s: &mut EState) {
     for iter in 0..BZ_N_ITERS {
         fave.fill(0);
 
-        for t in 0..nGroups {
-            s.rfreq[t][..alphaSize].fill(0);
+        for freq in s.rfreq[..nGroups].iter_mut() {
+            freq[..alphaSize].fill(0);
         }
 
         /*---
@@ -514,8 +514,8 @@ fn send_mtf_values(s: &mut EState) {
     writer.write(3, nGroups as u32);
     writer.write(15, nSelectors as u32);
 
-    for i in 0..nSelectors {
-        for _ in 0..s.selectorMtf[i] {
+    for selector_mtf in s.selectorMtf[..nSelectors].iter() {
+        for _ in 0..*selector_mtf {
             writer.write(1, 1);
         }
         writer.write(1, 0);
@@ -527,15 +527,15 @@ fn send_mtf_values(s: &mut EState) {
     /*--- Now the coding tables. ---*/
     nBytes = writer.num_z as i32;
 
-    for t in 0..nGroups {
-        let mut curr = s.len[t][0];
+    for group in s.len[..nGroups].iter() {
+        let mut curr = group[0];
         writer.write(5, curr as u32);
-        for i in 0..alphaSize {
-            while curr < s.len[t][i] {
+        for item in group[..alphaSize].iter() {
+            while curr < *item {
                 writer.write(2, 2);
                 curr += 1;
             }
-            while curr > s.len[t][i] {
+            while curr > *item {
                 writer.write(2, 3);
                 curr -= 1;
             }
