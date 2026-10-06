@@ -12,7 +12,6 @@ version = "0.2.5"
 edition = "2021"
 license = "bzip2-1.0.6"
 repository = "https://github.com/trifectatechfoundation/libbzip2-rs"
-homepage = "https://github.com/trifectatechfoundation/libbzip2-rs"
 readme = "./README.md"
 description = "a drop-in compatible rust bzip2 implementation"
 publish = true
@@ -38,7 +37,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 

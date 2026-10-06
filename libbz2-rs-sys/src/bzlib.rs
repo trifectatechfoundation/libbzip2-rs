@@ -1476,7 +1476,7 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
                 let bound = Ord::min(cs_avail_out, c_state_out_len);
 
                 unsafe {
-                    core::ptr::write_bytes(cs_next_out as *mut u8, c_state_out_ch, bound as usize);
+                    core::ptr::write_bytes(cs_next_out, c_state_out_ch, bound as usize);
                     cs_next_out = cs_next_out.add(bound as usize);
                 };
 
