@@ -879,23 +879,17 @@ fn miri_compress_init_edge_cases() {
     crate::assert_eq_rs_c!({
         use core::sync::atomic::{AtomicUsize, Ordering};
 
-        static TOTAL_BUDGET: AtomicUsize = AtomicUsize::new(0);
-        static BUDGET: AtomicUsize = AtomicUsize::new(0);
+        static ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+        static ALLOC_LIMIT: AtomicUsize = AtomicUsize::new(0);
 
         unsafe extern "C" fn failing_allocator(
             _opaque: *mut c_void,
             items: i32,
             size: i32,
         ) -> *mut c_void {
-            let extra = (items * size) as usize;
-
-            if extra <= BUDGET.load(Ordering::Relaxed) {
-                BUDGET.fetch_sub(extra, Ordering::Relaxed);
-
+            if ALLOC_COUNT.fetch_add(1, Ordering::Relaxed) < ALLOC_LIMIT.load(Ordering::Relaxed) {
                 libc::malloc((items * size) as usize)
             } else {
-                let total = TOTAL_BUDGET.fetch_add(extra, Ordering::Relaxed);
-                BUDGET.store(total + extra, Ordering::Relaxed);
                 core::ptr::null_mut()
             }
         }
@@ -906,7 +900,10 @@ fn miri_compress_init_edge_cases() {
             }
         }
 
-        for _ in 0..4 {
+        for n in 0..=4 {
+            ALLOC_COUNT.store(0, Ordering::Relaxed);
+            ALLOC_LIMIT.store(n, Ordering::Relaxed);
+
             let mut strm: MaybeUninit<bz_stream> = MaybeUninit::zeroed();
 
             core::ptr::addr_of_mut!((*strm.as_mut_ptr()).bzalloc)
@@ -917,10 +914,17 @@ fn miri_compress_init_edge_cases() {
                 .cast::<FreeFunc>()
                 .write(deallocate);
 
-            assert_eq!(
-                BZ_MEM_ERROR,
-                BZ2_bzCompressInit(strm.as_mut_ptr(), blockSize100k, verbosity, workFactor)
-            );
+            let ret = BZ2_bzCompressInit(strm.as_mut_ptr(), blockSize100k, verbosity, workFactor);
+
+            // BZ2_bzCompressInit does 4 allocations, so the 5th allocation should succeed
+            if n == 4 {
+                assert_eq!(ret, BZ_OK);
+                // We then need to properly deallocate the state.
+                assert_eq!(BZ_OK, BZ2_bzCompressEnd(strm.as_mut_ptr()));
+            } else {
+                // Miri validates that any allocations that were made have been cleaned up.
+                assert_eq!(ret, BZ_MEM_ERROR);
+            }
         }
     });
 }
