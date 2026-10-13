@@ -180,13 +180,13 @@ mod stream {
     }
 
     macro_rules! check_layout {
-    ($($field:ident,)*) => {
-        const _: () = {
-            $(assert!(offset_of!(bz_stream, $field) == offset_of!(BzStream<DState>, $field));)*
-            $(assert!(offset_of!(bz_stream, $field) == offset_of!(BzStream<EState>, $field));)*
+        ($($field:ident,)*) => {
+            const _: () = {
+                $(assert!(offset_of!(bz_stream, $field) == offset_of!(BzStream<DState>, $field));)*
+                $(assert!(offset_of!(bz_stream, $field) == offset_of!(BzStream<EState>, $field));)*
+            };
         };
-    };
-}
+    }
 
     check_layout!(
         next_in,
