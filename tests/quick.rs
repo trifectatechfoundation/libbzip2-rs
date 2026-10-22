@@ -1011,6 +1011,38 @@ mod decompress_command {
             ),
         );
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn output_clears_setuid_and_setgid() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // We need to mark the file as executable because S_ISGID is only cleared
+        // if it is executable by group
+        #[allow(clippy::unnecessary_cast)]
+        let exec_bits = (libc::S_IXUSR | libc::S_IXGRP) as u32;
+        #[allow(clippy::unnecessary_cast)]
+        let setuid_setgid_bits = (libc::S_ISUID | libc::S_ISGID) as u32;
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let input_file = tmpdir.path().join("sample1.bz2");
+        std::fs::copy("tests/input/quick/sample1.bz2", &input_file).unwrap();
+
+        // Make the input file setuid + setgid
+        let mut permissions = std::fs::metadata(&input_file).unwrap().permissions();
+        permissions.set_mode(permissions.mode() | exec_bits | setuid_setgid_bits);
+        std::fs::set_permissions(&input_file, permissions).unwrap();
+
+        // Decompress the file
+        let mut cmd = command();
+        expect_success!(cmd.arg("-d").arg(&input_file), "");
+
+        // Check whether the output file is setuid or setgid
+        let permissions = std::fs::metadata(input_file.with_extension(""))
+            .unwrap()
+            .permissions();
+        assert_eq!(0, permissions.mode() & setuid_setgid_bits);
+    }
 }
 
 mod test_command {
@@ -1856,5 +1888,37 @@ mod compress_command {
                 .arg("tests/input/quick/sample1.ref"),
             include_str!("compress-sample1-log.txt"),
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn output_clears_setuid_and_setgid() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // We need to mark the file as executable because S_ISGID is only cleared
+        // if it is executable by group
+        #[allow(clippy::unnecessary_cast)]
+        let exec_bits = (libc::S_IXUSR | libc::S_IXGRP) as u32;
+        #[allow(clippy::unnecessary_cast)]
+        let setuid_setgid_bits = (libc::S_ISUID | libc::S_ISGID) as u32;
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let input_file = tmpdir.path().join("sample1");
+        std::fs::copy("tests/input/quick/sample1.ref", &input_file).unwrap();
+
+        // Make the input file setuid + setgid
+        let mut permissions = std::fs::metadata(&input_file).unwrap().permissions();
+        permissions.set_mode(permissions.mode() | exec_bits | setuid_setgid_bits);
+        std::fs::set_permissions(&input_file, permissions).unwrap();
+
+        // Compress the file
+        let mut cmd = command();
+        expect_success!(cmd.arg("-z").arg(&input_file), "");
+
+        // Check whether the output file is setuid or setgid
+        let permissions = std::fs::metadata(input_file.with_extension("bz2"))
+            .unwrap()
+            .permissions();
+        assert_eq!(0, permissions.mode() & setuid_setgid_bits);
     }
 }
