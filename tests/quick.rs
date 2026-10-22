@@ -528,7 +528,8 @@ mod decompress_command {
                 "You can use the `bzip2recover' program to attempt to recover\n",
                 "data from undamaged sections of corrupted files.\n",
                 "\n",
-            ).to_string(),
+            )
+            .to_string(),
         );
     }
 
@@ -990,7 +991,8 @@ mod decompress_command {
                 "bzip2: (stdin): trailing garbage after EOF ignored\n",
                 "done\n",
                 ""
-            ).to_string(),
+            )
+            .to_string(),
         );
     }
 
