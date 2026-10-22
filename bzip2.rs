@@ -1234,6 +1234,7 @@ fn apply_saved_time_info_to_output_file(dst_name: &Path, metadata: Metadata) -> 
         .set_times(times)
 }
 
+// FIXME: Refactor this to call set_permissions_rust
 fn set_permissions(_config: &Config, _handle: &CFile, _metadata: &Metadata) {
     #[cfg(unix)]
     {
@@ -1251,6 +1252,8 @@ fn set_permissions(_config: &Config, _handle: &CFile, _metadata: &Metadata) {
         }
 
         // chown() will in many cases return with EPERM, which can be safely ignored.
+        // fchown will clear S_ISUID and S_ISGID mode bits if called by an
+        // unprivileged user (and since Linux 2.2.13, also for root).
         unsafe { libc::fchown(fd, _metadata.uid(), _metadata.gid()) };
     }
 }
@@ -1258,6 +1261,16 @@ fn set_permissions(_config: &Config, _handle: &CFile, _metadata: &Metadata) {
 fn set_permissions_rust(config: &Config, file: &std::fs::File, metadata: &Metadata) {
     if let Err(error) = file.set_permissions(metadata.permissions()) {
         exit_with_io_error(config, error);
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        // chown() will in many cases return with EPERM, which can be safely ignored.
+        // fchown will clear S_ISUID and S_ISGID mode bits if called by an
+        // unprivileged user (and since Linux 2.2.13, also for root).
+        let _ = std::os::unix::fs::fchown(file, Some(metadata.uid()), Some(metadata.gid()));
     }
 }
 
