@@ -1210,6 +1210,69 @@ mod test_command {
             ),
         );
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn interim_output_is_protected() {
+        use std::{io::Read, os::unix::fs::PermissionsExt, time::Duration};
+
+        #[allow(clippy::unnecessary_cast)]
+        let world_read_or_writable = (libc::S_IROTH | libc::S_IWOTH) as u32;
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let random_data_in = tmpdir.path().join("10MB");
+        let compressed_data = random_data_in.with_extension("bz2");
+        let mut random_data_file = std::fs::File::create(&random_data_in).unwrap();
+        // Generate 10MB of random data
+        let urandom = std::fs::File::open("/dev/urandom").unwrap();
+        let mut random_data_stream = urandom.take(10 * 1024 * 1024);
+        std::io::copy(&mut random_data_stream, &mut random_data_file).unwrap();
+        random_data_file.sync_all().unwrap();
+
+        // Start compressing the data - this should take a while so we can observe the interim output
+        let mut child = command()
+            .arg("-z")
+            .arg(&random_data_in)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        // Sleep a bit to give it a bit of time to create the interim output file
+        std::thread::sleep(Duration::from_millis(100));
+        // Ensure it isn't terminated yet
+        assert!(child.try_wait().unwrap().is_none());
+        // Check permissions on the interim output file
+        let interim_metadata = std::fs::metadata(&compressed_data).unwrap();
+        assert_eq!(
+            0,
+            interim_metadata.permissions().mode() & world_read_or_writable
+        );
+
+        // Wait for it to finish
+        assert!(child.wait().unwrap().success());
+
+        // Now do the inverse and decompress it
+        let mut child = command()
+            .arg("-d")
+            .arg(&compressed_data)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        // Sleep a bit to give it a bit of time to create the interim output file
+        std::thread::sleep(Duration::from_millis(100));
+        // Ensure it isn't terminated yet
+        assert!(child.try_wait().unwrap().is_none());
+        // Check permissions on the interim output file
+        let interim_metadata = std::fs::metadata(&random_data_in).unwrap();
+        assert_eq!(
+            0,
+            interim_metadata.permissions().mode() & world_read_or_writable
+        );
+
+        // Wait for it to finish
+        assert!(child.wait().unwrap().success());
+    }
 }
 
 mod compress_command {
