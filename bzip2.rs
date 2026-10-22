@@ -1234,11 +1234,11 @@ fn apply_saved_time_info_to_output_file(dst_name: &Path, metadata: Metadata) -> 
         .set_times(times)
 }
 
-// FIXME: Refactor this to call set_permissions_rust
 fn set_permissions(_config: &Config, _handle: &CFile, _metadata: &Metadata) {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::MetadataExt;
+        use std::mem::ManuallyDrop;
+        use std::os::fd::FromRawFd;
 
         let fd = unsafe { fileno(_handle.file) };
         if fd < 0 {
@@ -1246,15 +1246,11 @@ fn set_permissions(_config: &Config, _handle: &CFile, _metadata: &Metadata) {
             ioError(_config)
         }
 
-        let retVal = unsafe { libc::fchmod(fd, _metadata.mode() as libc::mode_t) };
-        if retVal != 0 {
-            ioError(_config);
-        }
+        // SAFETY: fd is an open file descriptor. We use ManuallyDrop to avoid
+        // running the Drop impl of File, which would close the fd.
+        let file = ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
 
-        // chown() will in many cases return with EPERM, which can be safely ignored.
-        // fchown will clear S_ISUID and S_ISGID mode bits if called by an
-        // unprivileged user (and since Linux 2.2.13, also for root).
-        unsafe { libc::fchown(fd, _metadata.uid(), _metadata.gid()) };
+        set_permissions_rust(_config, &file, _metadata);
     }
 }
 
