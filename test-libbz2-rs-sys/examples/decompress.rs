@@ -1,4 +1,11 @@
+use std::ffi::{c_char, CStr};
+
 use test_libbz2_rs_sys::{decompress_c_with_capacity, decompress_rs_with_capacity};
+
+extern "C" {
+    // bzip2-sys does not expose this method
+    fn BZ2_bzlibVersion() -> *const c_char;
+}
 
 fn main() {
     let mut it = std::env::args();
@@ -38,6 +45,13 @@ fn main() {
 
             drop(dest_vec)
         }
+        "version-rs" => println!(env!("CARGO_PKG_VERSION")),
+        "version-c" => println!(
+            "{}",
+            unsafe { CStr::from_ptr(BZ2_bzlibVersion()) }
+                .to_str()
+                .unwrap()
+        ),
         other => panic!("invalid option '{other}', expected one of 'c' or 'rs'"),
     }
 }
