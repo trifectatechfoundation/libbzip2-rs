@@ -60,10 +60,13 @@ impl Allocator {
 
     /// # Safety
     ///
-    /// - `strm.bzalloc` and `strm.opaque` must form a valid allocator, meaning `strm.bzalloc` returns either
+    /// - `strm.bzalloc` and `strm.opaque` must form a valid allocator, meaning that
+    ///   `strm.bzalloc(strm.opaque, items, size)` returns either
     ///     * a `NULL` pointer
-    ///     * a valid pointer to an allocation of `len * size_of::<T>()` bytes aligned to at least `align_of::<usize>()`
-    /// - `strm.bzfree` frees memory allocated by `strm.bzalloc`
+    ///     * a valid pointer to an allocation of at least `items * size` bytes, aligned to at least
+    ///       `align_of::<usize>()`. The byte count (`items * size`) is passed as `items`
+    ///       and the size as `1`, just as libbzip2 does
+    /// - `strm.bzfree(strm.opaque, ptr)` frees memory that `strm.bzalloc` returned
     pub(crate) unsafe fn from_bz_stream<S: StreamState>(strm: &BzStream<S>) -> Option<Self> {
         let bzalloc = strm.bzalloc?;
         let bzfree = strm.bzfree?;
@@ -83,10 +86,13 @@ impl Allocator {
 
     /// # Safety
     ///
-    /// - `allocate` and `opaque` must form a valid allocator, meaning `allocate` returns either
+    /// - `allocate` and `opaque` must form a valid allocator, meaning that
+    ///   `allocate(opaque, items, size)` returns either
     ///     * a `NULL` pointer
-    ///     * a valid pointer to an allocation of `len * size_of::<T>()` bytes aligned to at least `align_of::<usize>()`
-    /// - `deallocate` frees memory allocated by `allocate`
+    ///     * a valid pointer to an allocation of at least `items * size` bytes, aligned to at least
+    ///       `align_of::<usize>()`. The byte count (`items * size`) is passed as `items`
+    ///       and the size as `1`, just as libbzip2 does
+    /// - `deallocate(opaque, ptr)` frees memory that `allocate` returned
     pub(crate) fn custom(allocate: AllocFunc, deallocate: FreeFunc, opaque: *mut c_void) -> Self {
         Self::Custom {
             allocate,
@@ -176,7 +182,18 @@ impl Allocator {
             Allocator::Custom {
                 allocate, opaque, ..
             } => unsafe {
-                let ptr = (allocate)(*opaque, count as i32, core::mem::size_of::<T>() as i32);
+                // libbzip2 requests every block as `bzalloc(opaque, n, 1)`,
+		// and allocators written against it may honour only `n`. Pass
+                // the byte count as `items` and size as `1`.
+                //
+                // Passing `(count, size_of::<T>())` made such an allocator return
+                // `count` bytes for a `count * size_of::<T>()`-byte
+                // block.
+                //
+                // A request that does not fit the C `int` fails like a `NULL` return.
+                let len = count.checked_mul(core::mem::size_of::<T>())?;
+                let len = c_int::try_from(len).ok()?;
+                let ptr = (allocate)(*opaque, len, 1);
                 let ptr = ptr.cast::<T>();
 
                 if ptr.is_null() {
