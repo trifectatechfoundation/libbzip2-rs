@@ -58,7 +58,7 @@ jobs:
             codecov: false
 
           - target: "aarch64-unknown-linux-gnu"
-            os: ubuntu-24.04-arm
+            os: ubuntu-26.04-arm
             codecov: true
 
           - target: "i686-unknown-linux-gnu"
@@ -77,11 +77,11 @@ jobs:
             codecov: false
 
           - target: "x86_64-apple-darwin"
-            os: macos-latest
+            os: macos-26-intel
             codecov: true
 
           - target: "aarch64-apple-darwin"
-            os: macos-14
+            os: macos-latest
             codecov: true
 
           - target: "x86_64-pc-windows-gnu"
@@ -199,7 +199,7 @@ jobs:
             features: c-allocator
           - os: ubuntu-latest
             features: rust-allocator
-          - os: macos-14
+          - os: macos-latest
             features: ""
     steps:
       - name: Checkout sources
