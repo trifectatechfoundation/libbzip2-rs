@@ -1,105 +1,167 @@
 {
-    "commands": {
-        "compress-rs": [
-            "./compress rs 1 silesia-small.tar",
-            "./compress rs 2 silesia-small.tar",
-            "./compress rs 3 silesia-small.tar",
-            "./compress rs 4 silesia-small.tar",
-            "./compress rs 5 silesia-small.tar",
-            "./compress rs 6 silesia-small.tar",
-            "./compress rs 7 silesia-small.tar",
-            "./compress rs 8 silesia-small.tar",
-            "./compress rs 9 silesia-small.tar"
-        ],
-        "compress-c": [
-            "./compress c 1 silesia-small.tar",
-            "./compress c 2 silesia-small.tar",
-            "./compress c 3 silesia-small.tar",
-            "./compress c 4 silesia-small.tar",
-            "./compress c 5 silesia-small.tar",
-            "./compress c 6 silesia-small.tar",
-            "./compress c 7 silesia-small.tar",
-            "./compress c 8 silesia-small.tar",
-            "./compress c 9 silesia-small.tar"
-        ],
-        "compress-rs-small": [
-            "./compress rs 1 tests/input/quick/sample3.ref"
-        ],
-        "compress-c-small": [
-            "./compress c 1 tests/input/quick/sample3.ref"
-        ],
-        "decompress-rs": [
-            "./decompress rs tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
-            "./decompress rs tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
-            "./decompress rs tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
-            "./decompress rs tests/input/quick/sample1.bz2",
-            "./decompress rs tests/input/quick/sample2.bz2",
-            "./decompress rs tests/input/quick/sample3.bz2"
-        ],
-        "decompress-c": [
-            "./decompress c tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
-            "./decompress c tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
-            "./decompress c tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
-            "./decompress c tests/input/quick/sample1.bz2",
-            "./decompress c tests/input/quick/sample2.bz2",
-            "./decompress c tests/input/quick/sample3.bz2"
-        ]
-    },
-    "render-versus-self": {
-        "compression small (c vs rs)": {
-            "level 1": { "measure": "cycles", "before": { "command": "compress-c-small", "index": 0 }, "after": { "command": "compress-rs-small", "index": 0 } }
+    "toolchains": {
+        "rustc": {
+            "version": "rustc -vV | awk 'NR == 1 { first = $0 } /LLVM version:/ { llvm = $3 } END { print first \" (LLVM \" llvm \")\" }'",
+            "label": "🦀 Rust"
         },
-        "compression (c vs rs)": {
-            "level 1": { "measure": "cycles", "before": { "command": "compress-c", "index": 0 }, "after": { "command": "compress-rs", "index": 0 } },
-            "level 2": { "measure": "cycles", "before": { "command": "compress-c", "index": 1 }, "after": { "command": "compress-rs", "index": 1 } },
-            "level 3": { "measure": "cycles", "before": { "command": "compress-c", "index": 2 }, "after": { "command": "compress-rs", "index": 2 } },
-            "level 4": { "measure": "cycles", "before": { "command": "compress-c", "index": 3 }, "after": { "command": "compress-rs", "index": 3 } },
-            "level 5": { "measure": "cycles", "before": { "command": "compress-c", "index": 4 }, "after": { "command": "compress-rs", "index": 4 } },
-            "level 6": { "measure": "cycles", "before": { "command": "compress-c", "index": 5 }, "after": { "command": "compress-rs", "index": 5 } },
-            "level 7": { "measure": "cycles", "before": { "command": "compress-c", "index": 6 }, "after": { "command": "compress-rs", "index": 6 } },
-            "level 8": { "measure": "cycles", "before": { "command": "compress-c", "index": 7 }, "after": { "command": "compress-rs", "index": 7 } },
-            "level 9": { "measure": "cycles", "before": { "command": "compress-c", "index": 8 }, "after": { "command": "compress-rs", "index": 8 } }
+        "gcc": {
+            "version": "gcc --version | head -n 1",
+            "label": "🐄 GCC"
         },
-        "decompression (c vs rs)": {
-            "commons-compress/zip64support.tar.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 0 }, "after": { "command": "decompress-rs", "index": 0 } },
-            "go/regexp/re2-exhaustive.txt.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 1 }, "after": { "command": "decompress-rs", "index": 1 } },
-            "dotnetzip/dancing-color.ps.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 2 }, "after": { "command": "decompress-rs", "index": 2 } },
-            "tests/input/quick/sample1.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 3 }, "after": { "command": "decompress-rs", "index": 3 } },
-            "tests/input/quick/sample2.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 4 }, "after": { "command": "decompress-rs", "index": 4 } },
-            "tests/input/quick/sample3.bz2": { "measure": "cycles", "before": { "command": "decompress-c", "index": 5 }, "after": { "command": "decompress-rs", "index": 5 } }
+        "clang": {
+            "version": "clang --version | head -n 1",
+            "label": "🐉 Clang"
         }
     },
-    "render-versus-other": {
-        "compression small (rs, other versus self)": {
-            "measure": "cycles",
-            "command": "compress-rs",
-            "rows": {
-                "level 1": 0
+    "subjects": {
+        "libbzip2-rs": {
+            "name": "libbzip2-rs",
+            "version": "./compress version-rs",
+            "toolchain": "rustc"
+        },
+        "bzip2-clang": {
+            "name": "bzip2 (Clang)",
+            "version": "./compress version-c",
+            "toolchain": "clang"
+        }
+    },
+    "benchmarks": {
+        "compression": {
+            "commands": {
+                "libbzip2-rs": [
+                    "./compress rs 1 silesia-small.tar",
+                    "./compress rs 2 silesia-small.tar",
+                    "./compress rs 3 silesia-small.tar",
+                    "./compress rs 4 silesia-small.tar",
+                    "./compress rs 5 silesia-small.tar",
+                    "./compress rs 6 silesia-small.tar",
+                    "./compress rs 7 silesia-small.tar",
+                    "./compress rs 8 silesia-small.tar",
+                    "./compress rs 9 silesia-small.tar"
+                ],
+                "bzip2-clang": [
+                    "./compress c 1 silesia-small.tar",
+                    "./compress c 2 silesia-small.tar",
+                    "./compress c 3 silesia-small.tar",
+                    "./compress c 4 silesia-small.tar",
+                    "./compress c 5 silesia-small.tar",
+                    "./compress c 6 silesia-small.tar",
+                    "./compress c 7 silesia-small.tar",
+                    "./compress c 8 silesia-small.tar",
+                    "./compress c 9 silesia-small.tar"
+                ]
             }
         },
-        "compression (rs, other versus self)": {
-            "measure": "cycles",
-            "command": "compress-rs",
-            "rows": {
-                "level 1": 0,
-                "level 2": 1,
-                "level 3": 2,
-                "level 4": 3,
-                "level 5": 4,
-                "level 6": 5,
-                "level 7": 6,
-                "level 8": 7,
-                "level 9": 8
+        "compression-small": {
+            "commands": {
+                "libbzip2-rs": [
+                    "./compress rs 1 tests/input/quick/sample3.ref"
+                ],
+                "bzip2-clang": [
+                    "./compress c 1 tests/input/quick/sample3.ref"
+                ]
             }
         },
-        "decompression (rs, other versus self)": {
-            "measure": "cycles",
-            "command": "decompress-rs",
-            "rows": {
-                "commons-compress/zip64support.tar.bz2": 0,
-                "go/regexp/re2-exhaustive.txt.bz2": 1,
-                "dotnetzip/dancing-color.ps.bz2": 2
+        "decompression": {
+            "commands": {
+                "libbzip2-rs": [
+                    "./decompress rs tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
+                    "./decompress rs tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
+                    "./decompress rs tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
+                    "./decompress rs tests/input/quick/sample1.bz2",
+                    "./decompress rs tests/input/quick/sample2.bz2",
+                    "./decompress rs tests/input/quick/sample3.bz2"
+                ],
+                "bzip2-clang": [
+                    "./decompress c tests/input/bzip2-testfiles/commons-compress/zip64support.tar.bz2",
+                    "./decompress c tests/input/bzip2-testfiles/go/regexp/re2-exhaustive.txt.bz2",
+                    "./decompress c tests/input/bzip2-testfiles/dotnetzip/dancing-color.ps.bz2",
+                    "./decompress c tests/input/quick/sample1.bz2",
+                    "./decompress c tests/input/quick/sample2.bz2",
+                    "./decompress c tests/input/quick/sample3.bz2"
+                ]
             }
         }
-    }
+    },
+    "render-versus-self": [
+        {
+            "benchmark": "compression-small",
+            "measure": "cycles",
+            "before": "bzip2-clang",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "level 1", "index": 0 }
+            ]
+        },
+        {
+            "benchmark": "compression",
+            "measure": "cycles",
+            "before": "bzip2-clang",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "level 1", "index": 0 },
+                { "label": "level 2", "index": 1 },
+                { "label": "level 3", "index": 2 },
+                { "label": "level 4", "index": 3 },
+                { "label": "level 5", "index": 4 },
+                { "label": "level 6", "index": 5 },
+                { "label": "level 7", "index": 6 },
+                { "label": "level 8", "index": 7 },
+                { "label": "level 9", "index": 8 }
+            ]
+        },
+        {
+            "benchmark": "decompression",
+            "measure": "cycles",
+            "before": "bzip2-clang",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "commons-compress/zip64support.tar.bz2", "index": 0 },
+                { "label": "go/regexp/re2-exhaustive.txt.bz2", "index": 1 },
+                { "label": "dotnetzip/dancing-color.ps.bz2", "index": 2 },
+                { "label": "tests/input/quick/sample1.bz2", "index": 3 },
+                { "label": "tests/input/quick/sample2.bz2", "index": 4 },
+                { "label": "tests/input/quick/sample3.bz2", "index": 5 }
+            ]
+        }
+    ],
+    "render-versus-other": [
+        {
+            "benchmark": "compression-small",
+            "measure": "cycles",
+            "before": "libbzip2-rs",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "level 1", "index": 0 }
+            ]
+        },
+        {
+            "benchmark": "compression",
+            "measure": "cycles",
+            "before": "libbzip2-rs",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "level 1", "index": 0 },
+                { "label": "level 2", "index": 1 },
+                { "label": "level 3", "index": 2 },
+                { "label": "level 4", "index": 3 },
+                { "label": "level 5", "index": 4 },
+                { "label": "level 6", "index": 5 },
+                { "label": "level 7", "index": 6 },
+                { "label": "level 8", "index": 7 },
+                { "label": "level 9", "index": 8 }
+            ]
+        },
+        {
+            "benchmark": "decompression",
+            "measure": "cycles",
+            "before": "libbzip2-rs",
+            "after": "libbzip2-rs",
+            "runs": [
+                { "label": "commons-compress/zip64support.tar.bz2", "index": 0 },
+                { "label": "go/regexp/re2-exhaustive.txt.bz2", "index": 1 },
+                { "label": "dotnetzip/dancing-color.ps.bz2", "index": 2 }
+            ]
+        }
+    ]
 }
