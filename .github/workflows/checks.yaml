@@ -331,28 +331,28 @@ jobs:
       - name: "cdylib: default settings"
         working-directory: libbz2-rs-sys-cdylib
         env:
-          LD_LIBRARY_PATH: "target/${{matrix.target}}/release/deps"
+          LD_LIBRARY_PATH: "target/${{matrix.target}}/release"
         run: |
           cargo build --release --target ${{matrix.target}}
-          cc -o bzpipe bzpipe.c target/${{matrix.target}}/release/deps/libbz2_rs.so -I ../
+          cc -o bzpipe bzpipe.c target/${{matrix.target}}/release/libbz2_rs.so -I ../
           ./bzpipe < Cargo.toml | ./bzpipe -d > out.txt
           cmp -s Cargo.toml out.txt
       - name: "cdylib: no stdio"
         env:
-          LD_LIBRARY_PATH: "target/${{matrix.target}}/release/deps"
+          LD_LIBRARY_PATH: "target/${{matrix.target}}/release"
         working-directory: libbz2-rs-sys-cdylib
         run: |
           cargo build --release --target ${{matrix.target}} --no-default-features
-          cc -DNO_STD -o bzpipe bzpipe.c target/${{matrix.target}}/release/deps/libbz2_rs.so -I ../
+          cc -DNO_STD -o bzpipe bzpipe.c target/${{matrix.target}}/release/libbz2_rs.so -I ../
           ./bzpipe < Cargo.toml | ./bzpipe -d > out.txt
           cmp -s Cargo.toml out.txt
       - name: "staticlib: no stdio"
         env:
-          LD_LIBRARY_PATH: "target/${{matrix.target}}/release/deps"
+          LD_LIBRARY_PATH: "target/${{matrix.target}}/release"
         working-directory: libbz2-rs-sys-cdylib
         run: |
           cargo build --release --target ${{matrix.target}} --no-default-features
-          cc -o bzpipe bzpipe.c target/${{matrix.target}}/release/deps/libbz2_rs.so -I ../
+          cc -o bzpipe bzpipe.c target/${{matrix.target}}/release/libbz2_rs.so -I ../
           ./bzpipe < Cargo.toml | ./bzpipe -d > out.txt
           cmp -s Cargo.toml out.txt
       - name: "cdylib: custom-prefix"
@@ -361,12 +361,12 @@ jobs:
           LIBBZ2_RS_SYS_PREFIX: "MY_CUSTOM_PREFIX_"
         run: |
           cargo build --release --target ${{matrix.target}} --features=custom-prefix
-          objdump -tT target/${{matrix.target}}/release/deps/libbz2_rs.so | grep -q "MY_CUSTOM_PREFIX_BZ2_bzCompressInit" || (echo "symbol not found!" && exit 1)
+          objdump -tT target/${{matrix.target}}/release/libbz2_rs.so | grep -q "MY_CUSTOM_PREFIX_BZ2_bzCompressInit" || (echo "symbol not found!" && exit 1)
       - name: "cdylib: semver-prefix"
         working-directory: libbz2-rs-sys-cdylib
         run: |
           cargo build --release --target ${{matrix.target}} --features=semver-prefix
-          objdump -tT target/${{matrix.target}}/release/deps/libbz2_rs.so | grep -q -E "LIBBZ2_RS_SYS_v0.[0-9]+.x_BZ2_bzCompressInit" || (echo "symbol not found!" && exit 1)
+          objdump -tT target/${{matrix.target}}/release/libbz2_rs.so | grep -q -E "LIBBZ2_RS_SYS_v0.[0-9]+.x_BZ2_bzCompressInit" || (echo "symbol not found!" && exit 1)
 
   cargo-c-dynamic-library:
     name: cargo-c dynamic library
