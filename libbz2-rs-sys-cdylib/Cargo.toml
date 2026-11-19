@@ -4,7 +4,6 @@ version = "0.2.7"
 edition = "2021"
 license = "bzip2-1.0.6"
 repository = "https://github.com/trifectatechfoundation/libbzip2-rs"
-homepage = "https://github.com/trifectatechfoundation/libbzip2-rs"
 readme = "./README.md"
 description = "a drop-in compatible libbz2 cdylib"
 publish = true
