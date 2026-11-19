@@ -1023,29 +1023,43 @@ pub(crate) fn decompress(
                                 s.selector[i] = pos[0];
                             }
 
-                            // try to read the coding tables in one go if there is sufficient input
+                            // Try to read the coding tables in one go if there is sufficient input.
+                            // This is an estimate, and may be incorrect so state should be kept up
+                            // to date if we do exit early due to insufficient input.
                             let bits_needed =
                                 usize::from(nGroups) * (5 + (usize::from(alphaSize) * 2 * 20));
                             let bytes_needed = bits_needed.div_ceil(8);
 
                             if strm.avail_in as usize >= bytes_needed {
-                                for t in 0..usize::from(nGroups) {
-                                    let mut curr = GET_BITS!(strm, s, 5);
-                                    for i in 0..usize::from(alphaSize) {
+                                for inner_t in 0..nGroups {
+                                    t = inner_t;
+
+                                    s.state = State::BZ_X_CODING_1;
+                                    curr = GET_BITS!(strm, s, 5) as u8;
+
+                                    for inner_i in 0..alphaSize {
+                                        i = i32::from(inner_i);
+
+                                        // This is an unbounded loop, and pathological input can
+                                        // contain a long chain of bits encoding `+ 1 - 1 + 1 - 1`.
                                         loop {
                                             if !(1..=20).contains(&curr) {
                                                 error!(BZ_DATA_ERROR);
                                             }
+
+                                            s.state = State::BZ_X_CODING_2;
                                             if !GET_BIT!(strm, s) {
                                                 break;
                                             };
+
+                                            s.state = State::BZ_X_CODING_3;
                                             match GET_BIT!(strm, s) {
                                                 false => curr += 1,
                                                 true => curr -= 1,
                                             }
                                         }
 
-                                        s.len[t][i] = curr as u8;
+                                        s.len[usize::from(t)][usize::from(inner_i)] = curr;
                                     }
                                 }
 
