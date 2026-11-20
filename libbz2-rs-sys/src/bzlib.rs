@@ -122,6 +122,11 @@ type FreeFunc = unsafe extern "C" fn(*mut c_void, *mut c_void) -> ();
 /// }
 /// ```
 ///
+/// `bzalloc` is called as `bzalloc(opaque, n, 1)`: `n` is the number of bytes requested and the
+/// third argument is always `1`, as in libbzip2. The returned memory must be aligned to at
+/// least `align_of::<usize>()`, which `malloc` guarantees. `bzfree` receives `opaque` and a pointer
+/// that `bzalloc` returned.
+///
 /// When these fields are `None` (or `NULL` in C), the initialization functions will try to
 /// put in a default allocator, based on feature flags:
 ///
