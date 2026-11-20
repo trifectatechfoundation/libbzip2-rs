@@ -1,10 +1,8 @@
-#![forbid(unsafe_code)]
-
+use alloc::boxed::Box;
 use core::ffi::c_int;
 
-use crate::allocator::Allocator;
 use crate::bzlib::{
-    index_into_f, BzStream, DSlice, DState, DecompressMode, ReturnCode, SaveArea, BZ_MAX_SELECTORS,
+    index_into_f, BzStream, DState, DecompressMode, ReturnCode, SaveArea, BZ_MAX_SELECTORS,
     BZ_RAND_UPD_MASK, BZ_RUNA, BZ_RUNB,
 };
 use crate::{debug_log, huffman};
@@ -126,11 +124,7 @@ enum Block {
 }
 use Block::*;
 
-pub(crate) fn decompress(
-    strm: &mut BzStream<DState>,
-    s: &mut DState,
-    allocator: &Allocator,
-) -> ReturnCode {
+pub(crate) fn decompress(strm: &mut BzStream<DState>, s: &mut DState) -> ReturnCode {
     let mut current_block: Block;
     let mut uc: u8;
 
@@ -322,26 +316,37 @@ pub(crate) fn decompress(
             match s.smallDecompress {
                 DecompressMode::Small => {
                     let ll16_len = usize::from(s.blockSize100k) * 100000;
-                    let Some(ll16) = DSlice::alloc(allocator, ll16_len) else {
+                    let Ok(ll16) = Box::try_new_zeroed_slice_in(ll16_len, *Box::allocator(&s.ll16))
+                    else {
                         error!(BZ_MEM_ERROR);
                     };
+                    // FIXME: Get rid of this unsafe somehow
+                    // SAFETY: zeroes are a valid value for a u16
+                    let ll16 = unsafe { ll16.assume_init() };
 
                     // Assign here so that error! deallocates it when the allocation fails.
                     s.ll16 = ll16;
 
                     let ll4_len = (1 + usize::from(s.blockSize100k) * 100000) >> 1;
-                    let Some(ll4) = DSlice::alloc(allocator, ll4_len) else {
+                    let Ok(ll4) = Box::try_new_zeroed_slice_in(ll4_len, *Box::allocator(&s.ll4))
+                    else {
                         error!(BZ_MEM_ERROR);
                     };
+                    // FIXME: Get rid of this unsafe somehow
+                    // SAFETY: zeroes are a valid value for a u8
+                    let ll4 = unsafe { ll4.assume_init() };
 
                     s.ll4 = ll4;
                 }
                 DecompressMode::Fast => {
-                    // SAFETY: we assume allocation is safe
                     let tt_len = usize::from(s.blockSize100k) * 100000;
-                    let Some(tt) = DSlice::alloc(allocator, tt_len) else {
+                    let Ok(tt) = Box::try_new_zeroed_slice_in(tt_len, *Box::allocator(&s.tt))
+                    else {
                         error!(BZ_MEM_ERROR);
                     };
+                    // FIXME: Get rid of this unsafe somehow
+                    // SAFETY: zeroes are a valid value for a u32
+                    let tt = unsafe { tt.assume_init() };
 
                     s.tt = tt;
                 }
@@ -605,11 +610,6 @@ pub(crate) fn decompress(
             current_block = Block43;
         }
 
-        // mutable because they need to be reborrowed
-        let tt = s.tt.as_mut_slice();
-        let ll16 = s.ll16.as_mut_slice();
-        let ll4 = s.ll4.as_mut_slice();
-
         'state_machine: loop {
             match current_block {
                 BZ_X_MAPPING_1 => {
@@ -793,14 +793,14 @@ pub(crate) fn decompress(
                         s.unzftab[usize::from(uc)] += es;
                         match s.smallDecompress {
                             DecompressMode::Small => {
-                                match ll16.get_mut(nblock as usize..(nblock + es) as usize) {
+                                match s.ll16.get_mut(nblock as usize..(nblock + es) as usize) {
                                     Some(slice) => slice.fill(u16::from(uc)),
                                     None => error!(BZ_DATA_ERROR),
                                 };
                                 nblock += es;
                             }
                             DecompressMode::Fast => {
-                                match tt.get_mut(nblock as usize..(nblock + es) as usize) {
+                                match s.tt.get_mut(nblock as usize..(nblock + es) as usize) {
                                     Some(slice) => slice.fill(u32::from(uc)),
                                     None => error!(BZ_DATA_ERROR),
                                 };
@@ -830,8 +830,8 @@ pub(crate) fn decompress(
                     let index = s.seqToUnseq[uc];
                     s.unzftab[usize::from(index)] += 1;
                     match s.smallDecompress {
-                        DecompressMode::Small => ll16[nblock as usize] = u16::from(index),
-                        DecompressMode::Fast => tt[nblock as usize] = u32::from(index),
+                        DecompressMode::Small => s.ll16[nblock as usize] = u16::from(index),
+                        DecompressMode::Fast => s.tt[nblock as usize] = u32::from(index),
                     }
                     nblock += 1;
                     update_group_pos!(s);
@@ -875,43 +875,43 @@ pub(crate) fn decompress(
 
                                     // compute the T vector
                                     for i in 0..nblock as usize {
-                                        let uc = usize::from(ll16[i]);
-                                        ll16[i] = (s.cftabCopy[uc] & 0xffff) as u16;
+                                        let uc = usize::from(s.ll16[i]);
+                                        s.ll16[i] = (s.cftabCopy[uc] & 0xffff) as u16;
 
                                         // set the lower or higher nibble depending on i
                                         let (mask, shift) = match i & 0x1 {
                                             0 => (0xF0, 0),
                                             _ => (0x0F, 4),
                                         };
-                                        ll4[i / 2] &= mask;
-                                        ll4[i / 2] |= ((s.cftabCopy[uc] >> 16) << shift) as u8;
+                                        s.ll4[i / 2] &= mask;
+                                        s.ll4[i / 2] |= ((s.cftabCopy[uc] >> 16) << shift) as u8;
 
                                         s.cftabCopy[uc] += 1;
                                     }
 
                                     // Compute T^(-1) by pointer reversal on T
                                     i = s.origPtr;
-                                    j = (ll16[i as usize] as u32
-                                        | (((ll4[(i >> 1) as usize] as u32 >> ((i << 2) & 0b100))
+                                    j = (s.ll16[i as usize] as u32
+                                        | (((s.ll4[(i >> 1) as usize] as u32
+                                            >> ((i << 2) & 0b100))
                                             & 0xf)
                                             << 16)) as i32;
                                     loop {
-                                        let tmp_0: i32 = (ll16[j as usize] as u32
-                                            | (((ll4[(j >> 1) as usize] as u32
+                                        let tmp_0: i32 = (s.ll16[j as usize] as u32
+                                            | (((s.ll4[(j >> 1) as usize] as u32
                                                 >> ((j << 2) & 0b100))
                                                 & 0xf)
                                                 << 16))
                                             as i32;
-                                        ll16[j as usize] = (i & 0xffff) as u16;
+                                        s.ll16[j as usize] = (i & 0xffff) as u16;
                                         if j & 0x1 == 0 {
-                                            ll4[(j >> 1) as usize] = (ll4[(j >> 1) as usize]
-                                                as c_int
-                                                & 0xf0
-                                                | (i >> 16))
-                                                as u8;
+                                            s.ll4[(j >> 1) as usize] =
+                                                (s.ll4[(j >> 1) as usize] as c_int & 0xf0
+                                                    | (i >> 16))
+                                                    as u8;
                                         } else {
-                                            ll4[(j >> 1) as usize] =
-                                                (ll4[(j >> 1) as usize] as c_int & 0xf
+                                            s.ll4[(j >> 1) as usize] =
+                                                (s.ll4[(j >> 1) as usize] as c_int & 0xf
                                                     | ((i >> 16) << 4))
                                                     as u8
                                         }
@@ -926,10 +926,10 @@ pub(crate) fn decompress(
                                     s.nblock_used = 0;
 
                                     s.k0 = index_into_f(s.tPos, &s.cftab);
-                                    s.tPos = match ll16.get(s.tPos as usize) {
+                                    s.tPos = match s.ll16.get(s.tPos as usize) {
                                         None => error!(BZ_DATA_ERROR),
                                         Some(&low_bits) => {
-                                            let high_bits = (ll4[(s.tPos >> 1) as usize]
+                                            let high_bits = (s.ll4[(s.tPos >> 1) as usize]
                                                 >> ((s.tPos << 2) & 0b100))
                                                 & 0xf;
                                             u32::from(low_bits) | (u32::from(high_bits) << 16)
@@ -946,14 +946,14 @@ pub(crate) fn decompress(
                                 }
                                 DecompressMode::Fast => {
                                     for i in 0..nblock as usize {
-                                        let uc = (tt[i] & 0xff) as usize;
-                                        tt[s.cftab[uc] as usize] |= (i << 8) as u32;
+                                        let uc = (s.tt[i] & 0xff) as usize;
+                                        s.tt[s.cftab[uc] as usize] |= (i << 8) as u32;
                                         s.cftab[uc] += 1;
                                     }
-                                    s.tPos = tt[s.origPtr as usize] >> 8;
+                                    s.tPos = s.tt[s.origPtr as usize] >> 8;
                                     s.nblock_used = 0;
 
-                                    s.tPos = match tt.get(s.tPos as usize) {
+                                    s.tPos = match s.tt.get(s.tPos as usize) {
                                         Some(&tPos) => tPos,
                                         None => error!(BZ_DATA_ERROR),
                                     };

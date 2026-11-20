@@ -795,22 +795,6 @@ fn miri_decompress_end_edge_cases() {
 
         BZ2_bzDecompressEnd(strm)
     });
-
-    // bzfree is NULL
-    unsafe {
-        use libbz2_rs_sys::*;
-
-        let mut strm = MaybeUninit::zeroed();
-        assert_eq!(BZ_OK, BZ2_bzDecompressInit(strm.as_mut_ptr(), 0, 0));
-        let strm = strm.assume_init_mut();
-
-        let bzfree = strm.bzfree.take();
-
-        assert_eq!(BZ_PARAM_ERROR, BZ2_bzDecompressEnd(strm));
-
-        strm.bzfree = bzfree;
-        assert_eq!(BZ_OK, BZ2_bzDecompressEnd(strm));
-    }
 }
 
 #[test]
@@ -1257,25 +1241,6 @@ fn miri_compress_end_edge_cases() {
 
         BZ2_bzCompressEnd(strm)
     });
-
-    // bzfree is NULL
-    unsafe {
-        use libbz2_rs_sys::*;
-
-        let mut strm = MaybeUninit::zeroed();
-        assert_eq!(
-            BZ_OK,
-            BZ2_bzCompressInit(strm.as_mut_ptr(), blockSize100k, verbosity, workFactor)
-        );
-        let strm = strm.assume_init_mut();
-
-        let bzfree = strm.bzfree.take();
-
-        assert_eq!(BZ_PARAM_ERROR, BZ2_bzCompressEnd(strm));
-
-        strm.bzfree = bzfree;
-        assert_eq!(BZ_OK, BZ2_bzCompressEnd(strm));
-    }
 }
 
 #[cfg(not(miri))]

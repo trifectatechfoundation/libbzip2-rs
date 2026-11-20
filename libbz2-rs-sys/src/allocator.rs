@@ -16,200 +16,177 @@
 #[cfg(feature = "rust-allocator")]
 extern crate alloc;
 
+use core::alloc::{AllocError, Allocator, Layout};
 use core::ffi::{c_int, c_void};
+use core::ptr::NonNull;
 
-use crate::bzlib::{BzStream, StreamState};
-
-type AllocFunc = unsafe extern "C" fn(*mut c_void, c_int, c_int) -> *mut c_void;
-type FreeFunc = unsafe extern "C" fn(*mut c_void, *mut c_void) -> ();
-
-pub(crate) enum Allocator {
-    #[cfg(feature = "rust-allocator")]
-    Rust,
-    #[cfg(feature = "c-allocator")]
-    C,
-    Custom {
-        allocate: AllocFunc,
-        deallocate: FreeFunc,
-        opaque: *mut c_void,
-    },
+#[derive(Clone, Copy)]
+pub(crate) struct CustomAllocator {
+    allocator: AllocFunc,
+    deallocate: FreeFunc,
+    opaque: *mut c_void,
 }
 
-impl Allocator {
-    #[allow(unreachable_code)]
-    pub(crate) const DEFAULT: Option<Self> = 'blk: {
-        #[cfg(feature = "rust-allocator")]
-        break 'blk Some(Self::Rust);
-
-        #[cfg(feature = "c-allocator")]
-        break 'blk Some(Self::C);
-
-        None
-    };
-
-    #[allow(unreachable_code)]
-    pub(crate) fn default_function_pointers() -> Option<(AllocFunc, FreeFunc)> {
-        #[cfg(feature = "rust-allocator")]
-        return Some(rust_allocator::ALLOCATOR);
-
-        #[cfg(feature = "c-allocator")]
-        return Some(c_allocator::ALLOCATOR);
-
-        None
-    }
-
-    /// # Safety
-    ///
-    /// - `strm.bzalloc` and `strm.opaque` must form a valid allocator, meaning `strm.bzalloc` returns either
-    ///     * a `NULL` pointer
-    ///     * a valid pointer to an allocation of `len * size_of::<T>()` bytes aligned to at least `align_of::<usize>()`
-    /// - `strm.bzfree` frees memory allocated by `strm.bzalloc`
-    pub(crate) unsafe fn from_bz_stream<S: StreamState>(strm: &BzStream<S>) -> Option<Self> {
-        let bzalloc = strm.bzalloc?;
-        let bzfree = strm.bzfree?;
-
-        #[cfg(feature = "rust-allocator")]
-        if (bzalloc, bzfree) == rust_allocator::ALLOCATOR {
-            return Some(Self::Rust);
-        }
-
-        #[cfg(feature = "c-allocator")]
-        if (bzalloc, bzfree) == c_allocator::ALLOCATOR {
-            return Some(Self::C);
-        }
-
-        Some(Self::custom(bzalloc, bzfree, strm.opaque))
-    }
-
+impl CustomAllocator {
     /// # Safety
     ///
     /// - `allocate` and `opaque` must form a valid allocator, meaning `allocate` returns either
     ///     * a `NULL` pointer
     ///     * a valid pointer to an allocation of `len * size_of::<T>()` bytes aligned to at least `align_of::<usize>()`
     /// - `deallocate` frees memory allocated by `allocate`
-    pub(crate) fn custom(allocate: AllocFunc, deallocate: FreeFunc, opaque: *mut c_void) -> Self {
-        Self::Custom {
-            allocate,
+    pub(crate) fn new(allocator: AllocFunc, deallocate: FreeFunc, opaque: *mut c_void) -> Self {
+        Self {
+            allocator,
             deallocate,
             opaque,
         }
     }
 }
 
-#[cfg(feature = "c-allocator")]
-pub(crate) mod c_allocator {
-    use super::*;
+unsafe impl Allocator for CustomAllocator {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        match layout.size() {
+            0 => Ok(layout.dangling_ptr().cast_slice(0)),
+            // SAFETY: `layout` is non-zero in size
+            size => {
+                // Ensure that we're not going to underallocate
+                let Ok(malloc_size) = i32::try_from(size) else {
+                    return Err(AllocError);
+                };
+                // We ignore the alignment here and hope that our alignment is low enough
+                // that any malloc implementation will satisfy it
+                let raw_ptr = unsafe { (self.allocator)(self.opaque, 1, malloc_size) };
+                // Make sure that the alignment requirement is met
+                // FIXME: Use ptr::is_aligned_to once stable
+                assert!(raw_ptr.addr().is_multiple_of(layout.align()));
+                let ptr = NonNull::new(raw_ptr.cast()).ok_or(AllocError)?;
 
-    // make sure that the only way these function pointers leave this module is via this constant
-    // that way the function pointer address is a reliable way to know that the default C allocator
-    // is used.
-    pub(crate) static ALLOCATOR: (AllocFunc, FreeFunc) = (self::allocate, self::deallocate);
-
-    unsafe extern "C" fn allocate(_opaque: *mut c_void, count: c_int, size: c_int) -> *mut c_void {
-        // NOTE: allocations bigger than isize::MAX are UB in LLVM.
-        let (Ok(count), Ok(size)) = (isize::try_from(count), isize::try_from(size)) else {
-            return core::ptr::null_mut();
-        };
-
-        let Some(len) = count.checked_mul(size) else {
-            return core::ptr::null_mut();
-        };
-
-        let Ok(len) = usize::try_from(len) else {
-            return core::ptr::null_mut();
-        };
-
-        unsafe { libc::malloc(len) }
+                Ok(ptr.cast_slice(size))
+            }
+        }
     }
 
-    unsafe extern "C" fn deallocate(_opaque: *mut c_void, ptr: *mut c_void) {
-        if !ptr.is_null() {
-            unsafe {
-                libc::free(ptr);
+    fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        match layout.size() {
+            0 => Ok(layout.dangling_ptr().cast_slice(0)),
+            // SAFETY: `layout` is non-zero in size
+            size => {
+                let ptr = self.allocate(layout)?;
+
+                // Zero-initialize it
+                unsafe { core::ptr::write_bytes(ptr.as_ptr().cast::<u8>(), 0, size) };
+
+                Ok(ptr)
             }
+        }
+    }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        if layout.size() != 0 {
+            // SAFETY: `layout` is non-zero in size
+            // other conditions must be upheld by the caller
+            unsafe { (self.deallocate)(self.opaque, ptr.as_ptr().cast()) };
         }
     }
 }
 
-#[cfg(feature = "rust-allocator")]
-mod rust_allocator {
-    use super::*;
+type AllocFunc = unsafe extern "C" fn(*mut c_void, c_int, c_int) -> *mut c_void;
+type FreeFunc = unsafe extern "C" fn(*mut c_void, *mut c_void) -> ();
 
-    // make sure that the only way these function pointers leave this module is via this constant
-    // that way the function pointer address is a reliable way to know that the default C allocator
-    // is used.
-    pub(crate) static ALLOCATOR: (AllocFunc, FreeFunc) = (self::allocate, self::deallocate);
-
-    unsafe extern "C" fn allocate(
-        _opaque: *mut c_void,
-        _count: c_int,
-        _size: c_int,
-    ) -> *mut c_void {
-        unreachable!("the default rust allocation function should never be called directly");
-    }
-
-    unsafe extern "C" fn deallocate(_opaque: *mut c_void, _ptr: *mut c_void) {
-        unreachable!("the default rust deallocation function should never be called directly");
-    }
+#[derive(Clone, Copy)]
+pub(crate) enum BzipAllocator {
+    #[cfg(feature = "rust-allocator")]
+    Rust(alloc::alloc::Global),
+    // FIXME: Ideally System would be in alloc
+    #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+    C(std::alloc::System),
+    Custom(CustomAllocator),
 }
 
-impl Allocator {
-    /// Allocates `count` contiguous values of type `T`, and zeros out all elements.
-    pub(crate) fn allocate_zeroed<T>(&self, count: usize) -> Option<*mut T> {
-        const {
-            assert!(size_of::<T>() != 0);
-        }
-        assert_ne!(count, 0);
+impl BzipAllocator {
+    #[cfg(feature = "rust-allocator")]
+    pub(crate) const DEFAULT: Option<Self> = Some(Self::Rust(alloc::alloc::Global));
 
+    #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+    pub(crate) const DEFAULT: Option<Self> = Some(Self::C(std::alloc::System));
+
+    #[cfg(not(any(feature = "rust-allocator", feature = "c-allocator")))]
+    pub(crate) const DEFAULT: Option<Self> = None;
+}
+
+unsafe impl Allocator for BzipAllocator {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         match self {
+            Self::Custom(a) => a.allocate(layout),
             #[cfg(feature = "rust-allocator")]
-            Allocator::Rust => {
-                let layout = core::alloc::Layout::array::<T>(count).unwrap();
-                let ptr = unsafe { alloc::alloc::alloc_zeroed(layout) };
-                (!ptr.is_null()).then_some(ptr.cast())
-            }
-            #[cfg(feature = "c-allocator")]
-            Allocator::C => {
-                let ptr = unsafe { libc::calloc(count, core::mem::size_of::<T>()) };
-                (!ptr.is_null()).then_some(ptr.cast())
-            }
-            Allocator::Custom {
-                allocate, opaque, ..
-            } => unsafe {
-                let ptr = (allocate)(*opaque, count as i32, core::mem::size_of::<T>() as i32);
-                let ptr = ptr.cast::<T>();
-
-                if ptr.is_null() {
-                    return None;
-                }
-
-                core::ptr::write_bytes(ptr, 0, count);
-
-                Some(ptr)
-            },
+            Self::Rust(a) => a.allocate(layout),
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => a.allocate(layout),
         }
     }
 
-    pub(crate) unsafe fn deallocate<T>(&self, ptr: *mut T, count: usize) {
-        if ptr.is_null() || count == 0 {
-            return;
-        }
-
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         match self {
+            Self::Custom(a) => unsafe { a.deallocate(ptr, layout) },
             #[cfg(feature = "rust-allocator")]
-            Allocator::Rust => {
-                let layout = core::alloc::Layout::array::<T>(count).unwrap();
-                unsafe { alloc::alloc::dealloc(ptr.cast(), layout) }
-            }
-            #[cfg(feature = "c-allocator")]
-            Allocator::C => {
-                unsafe { libc::free(ptr.cast()) };
-            }
-            Allocator::Custom {
-                deallocate, opaque, ..
-            } => {
-                unsafe { deallocate(*opaque, ptr.cast()) };
-            }
+            Self::Rust(a) => unsafe { a.deallocate(ptr, layout) },
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => unsafe { a.deallocate(ptr, layout) },
+        }
+    }
+
+    fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        match self {
+            Self::Custom(a) => a.allocate_zeroed(layout),
+            #[cfg(feature = "rust-allocator")]
+            Self::Rust(a) => a.allocate_zeroed(layout),
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => a.allocate_zeroed(layout),
+        }
+    }
+
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        match self {
+            Self::Custom(a) => unsafe { a.grow(ptr, old_layout, new_layout) },
+            #[cfg(feature = "rust-allocator")]
+            Self::Rust(a) => unsafe { a.grow(ptr, old_layout, new_layout) },
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => unsafe { a.grow(ptr, old_layout, new_layout) },
+        }
+    }
+
+    unsafe fn grow_zeroed(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        match self {
+            Self::Custom(a) => unsafe { a.grow_zeroed(ptr, old_layout, new_layout) },
+            #[cfg(feature = "rust-allocator")]
+            Self::Rust(a) => unsafe { a.grow_zeroed(ptr, old_layout, new_layout) },
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => unsafe { a.grow_zeroed(ptr, old_layout, new_layout) },
+        }
+    }
+
+    unsafe fn shrink(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        match self {
+            Self::Custom(a) => unsafe { a.shrink(ptr, old_layout, new_layout) },
+            #[cfg(feature = "rust-allocator")]
+            Self::Rust(a) => unsafe { a.shrink(ptr, old_layout, new_layout) },
+            #[cfg(all(feature = "c-allocator", not(feature = "rust-allocator")))]
+            Self::C(a) => unsafe { a.shrink(ptr, old_layout, new_layout) },
         }
     }
 }

@@ -916,9 +916,15 @@ pub(crate) fn block_sort(s: &mut EState) {
     let nblock = usize::try_from(s.nblock).unwrap();
 
     let ptr = s.arr1.ptr();
-    let ftab = s.ftab.ftab();
 
-    BZ2_blockSortHelp(ptr, &mut s.arr2, ftab, nblock, s.workFactor, s.verbosity);
+    BZ2_blockSortHelp(
+        ptr,
+        &mut s.arr2,
+        &mut s.ftab,
+        nblock,
+        s.workFactor,
+        s.verbosity,
+    );
 
     s.origPtr = -1;
     for i in 0..s.nblock {

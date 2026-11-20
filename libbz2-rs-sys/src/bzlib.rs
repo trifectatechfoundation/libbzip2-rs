@@ -1,8 +1,10 @@
+use alloc::boxed::Box;
+use core::alloc::AllocError;
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use core::mem::offset_of;
 use core::{mem, ptr};
 
-use crate::allocator::Allocator;
+use crate::allocator::BzipAllocator;
 use crate::compress::compress_block;
 use crate::crctable::BZ2_CRC32TABLE;
 use crate::debug_log;
@@ -161,6 +163,8 @@ pub struct bz_stream {
 
 pub(crate) use stream::*;
 mod stream {
+    use crate::allocator::CustomAllocator;
+
     use super::*;
 
     #[repr(C)]
@@ -263,10 +267,6 @@ mod stream {
             unsafe { p.cast::<Self>().as_mut() }
         }
 
-        pub(super) fn allocator(&self) -> Option<Allocator> {
-            unsafe { Allocator::from_bz_stream(self) }
-        }
-
         /// Read up to 7 bytes into the bit buffer.
         ///
         /// The caller is responsible for updating `self.total_in`!
@@ -367,20 +367,14 @@ mod stream {
         }
     }
 
-    pub(super) fn configure_allocator<S: StreamState>(strm: &mut BzStream<S>) -> Option<Allocator> {
+    pub(super) fn configure_allocator<S: StreamState>(
+        strm: &mut BzStream<S>,
+    ) -> Option<BzipAllocator> {
         match (strm.bzalloc, strm.bzfree) {
-            (Some(allocate), Some(deallocate)) => {
-                Some(Allocator::custom(allocate, deallocate, strm.opaque))
-            }
-            (None, None) => {
-                let allocator = Allocator::DEFAULT?;
-                let (bzalloc, bzfree) = Allocator::default_function_pointers()?;
-
-                strm.bzalloc = Some(bzalloc);
-                strm.bzfree = Some(bzfree);
-
-                Some(allocator)
-            }
+            (Some(allocate), Some(deallocate)) => Some(BzipAllocator::Custom(
+                CustomAllocator::new(allocate, deallocate, strm.opaque),
+            )),
+            (None, None) => BzipAllocator::DEFAULT,
             // Using a different allocator for alloc and free is UB. The user of libbzip2-rs can't get a
             // reference to the default alloc or free function, so hitting this path means that using
             // the default alloc or free function would cause two allocators to be mixed. As such return
@@ -396,12 +390,44 @@ mod stream {
                 // it will panic at runtime when called directly. Usually the idea here is that
                 // allocation is special, and free is just the default `libc::free` that we configure
                 // by default with the default C allocator.
-                let (default_bzalloc, default_bzfree) = crate::allocator::c_allocator::ALLOCATOR;
+                unsafe extern "C" fn default_bzalloc(
+                    _opaque: *mut c_void,
+                    count: c_int,
+                    size: c_int,
+                ) -> *mut c_void {
+                    // NOTE: allocations bigger than isize::MAX are UB in LLVM.
+                    let (Ok(count), Ok(size)) = (isize::try_from(count), isize::try_from(size))
+                    else {
+                        return core::ptr::null_mut();
+                    };
+
+                    let Some(len) = count.checked_mul(size) else {
+                        return core::ptr::null_mut();
+                    };
+
+                    let Ok(len) = usize::try_from(len) else {
+                        return core::ptr::null_mut();
+                    };
+
+                    unsafe { libc::malloc(len) }
+                }
+
+                unsafe extern "C" fn default_bzfree(_opaque: *mut c_void, ptr: *mut c_void) {
+                    if !ptr.is_null() {
+                        unsafe {
+                            libc::free(ptr);
+                        }
+                    }
+                }
 
                 let bzalloc = strm.bzalloc.get_or_insert(default_bzalloc);
                 let bzfree = strm.bzfree.get_or_insert(default_bzfree);
 
-                Some(Allocator::custom(*bzalloc, *bzfree, strm.opaque))
+                Some(BzipAllocator::Custom(CustomAllocator::new(
+                    *bzalloc,
+                    *bzfree,
+                    strm.opaque,
+                )))
             }
         }
     }
@@ -457,7 +483,7 @@ pub(crate) struct EState {
     pub avail_in_expect: u32,
     pub arr1: Arr1,
     pub arr2: Arr2,
-    pub ftab: Ftab,
+    pub ftab: Box<[u32; FTAB_LEN], BzipAllocator>,
     pub origPtr: i32,
     pub writer: crate::compress::EWriter,
     pub workFactor: i32,
@@ -484,131 +510,72 @@ pub(crate) struct EState {
     pub len_pack: [[u32; 4]; 258],
 }
 
-/// Creates a new pointer that is dangling, but well-aligned.
-pub(crate) fn dangling<T>() -> *mut T {
-    ptr::null_mut::<T>().wrapping_add(mem::align_of::<T>())
-}
-
-pub(crate) struct Arr1 {
-    ptr: *mut u32,
-    len: usize,
-}
+pub(crate) struct Arr1(Box<[u32], BzipAllocator>);
 
 impl Arr1 {
-    fn alloc(allocator: &Allocator, len: usize) -> Option<Self> {
-        let ptr = allocator.allocate_zeroed(len)?;
-        Some(Self { ptr, len })
-    }
-
-    unsafe fn dealloc(&mut self, allocator: &Allocator) {
-        let this = mem::replace(
-            self,
-            Self {
-                ptr: dangling(),
-                len: 0,
-            },
-        );
-        if this.len != 0 {
-            unsafe { allocator.deallocate(this.ptr, this.len) }
-        }
+    fn new(len: usize, allocator: BzipAllocator) -> Result<Self, AllocError> {
+        let maybe_uninit = Box::try_new_zeroed_slice_in(len, allocator)?;
+        // SAFETY: zeroes are a valid value for u32
+        let init = unsafe { maybe_uninit.assume_init() };
+        Ok(Self(init))
     }
 
     pub(crate) fn mtfv(&mut self) -> &mut [u16] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.cast(), self.len * 2) }
+        unsafe { core::slice::from_raw_parts_mut(self.0.as_mut_ptr().cast(), self.0.len() * 2) }
     }
 
     pub(crate) fn ptr(&mut self) -> &mut [u32] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr, self.len) }
+        &mut self.0
     }
 }
 
-pub(crate) struct Arr2 {
-    ptr: *mut u32,
-    len: usize,
-}
+pub(crate) struct Arr2(Box<[u32], BzipAllocator>);
 
 impl Arr2 {
-    fn alloc(allocator: &Allocator, len: usize) -> Option<Self> {
-        let ptr = allocator.allocate_zeroed(len)?;
-        Some(Self { ptr, len })
-    }
-
-    unsafe fn dealloc(&mut self, allocator: &Allocator) {
-        let this = mem::replace(
-            self,
-            Self {
-                ptr: dangling(),
-                len: 0,
-            },
-        );
-        if this.len != 0 {
-            unsafe { allocator.deallocate(this.ptr, this.len) }
-        }
+    fn new(len: usize, allocator: BzipAllocator) -> Result<Self, AllocError> {
+        let maybe_uninit = Box::try_new_zeroed_slice_in(len, allocator)?;
+        // SAFETY: zeroes are a valid value for u32
+        let init = unsafe { maybe_uninit.assume_init() };
+        Ok(Self(init))
     }
 
     pub(crate) fn eclass(&mut self) -> &mut [u32] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr, self.len) }
+        &mut self.0
     }
 
     pub(crate) fn zbits(&mut self, nblock: usize) -> &mut [u8] {
-        assert!(nblock <= 4 * self.len);
+        assert!(nblock <= 4 * self.0.len());
         unsafe {
             core::slice::from_raw_parts_mut(
-                self.ptr.cast::<u8>().add(nblock),
-                self.len * 4 - nblock,
+                self.0.as_mut_ptr().cast::<u8>().add(nblock),
+                self.0.len() * 4 - nblock,
             )
         }
     }
 
     pub(crate) fn raw_block(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.cast(), self.len * 4) }
+        unsafe { core::slice::from_raw_parts_mut(self.0.as_mut_ptr().cast(), self.0.len() * 4) }
     }
 
     pub(crate) fn block(&mut self, nblock: usize) -> &mut [u8] {
-        assert!(nblock <= 4 * self.len);
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.cast(), nblock) }
+        assert!(nblock <= 4 * self.0.len());
+        unsafe { core::slice::from_raw_parts_mut(self.0.as_mut_ptr().cast(), nblock) }
     }
 
     pub(crate) fn block_and_quadrant(&mut self, nblock: usize) -> (&mut [u8], &mut [u16]) {
-        let len = nblock + BZ_N_OVERSHOOT;
-        assert!(3 * len.next_multiple_of(2) <= 4 * self.len);
+        // FIXME: split_at_mut?
 
-        let block = unsafe { core::slice::from_raw_parts_mut(self.ptr.cast(), len) };
+        let len = nblock + BZ_N_OVERSHOOT;
+        assert!(3 * len.next_multiple_of(2) <= 4 * self.0.len());
+
+        let block = unsafe { core::slice::from_raw_parts_mut(self.0.as_mut_ptr().cast(), len) };
 
         let start_byte = len.next_multiple_of(2);
-        let quadrant: *mut u16 = unsafe { self.ptr.cast::<u16>().byte_add(start_byte) };
+        let quadrant: *mut u16 = unsafe { self.0.as_mut_ptr().cast::<u16>().byte_add(start_byte) };
         let quadrant = unsafe { core::slice::from_raw_parts_mut(quadrant, len) };
         quadrant.fill(0);
 
         (block, quadrant)
-    }
-}
-
-pub(crate) struct Ftab {
-    ptr: *mut u32,
-}
-
-impl Ftab {
-    fn alloc(allocator: &Allocator) -> Option<Self> {
-        let ptr = allocator.allocate_zeroed(FTAB_LEN)?;
-        Some(Self { ptr })
-    }
-
-    unsafe fn dealloc(&mut self, allocator: &Allocator) {
-        let this = mem::replace(
-            self,
-            Self {
-                ptr: ptr::null_mut(),
-            },
-        );
-        if !this.ptr.is_null() {
-            unsafe { allocator.deallocate(this.ptr, FTAB_LEN) }
-        }
-    }
-
-    pub(crate) fn ftab(&mut self) -> &mut [u32; FTAB_LEN] {
-        // NOTE: this panics if the pointer is NULL, that is important!
-        unsafe { self.ptr.cast::<[u32; FTAB_LEN]>().as_mut().unwrap() }
     }
 }
 
@@ -634,9 +601,9 @@ pub(crate) struct DState {
     pub unzftab: [u32; 256],
     pub cftab: [u32; 257],
     pub cftabCopy: [u32; 257],
-    pub tt: DSlice<u32>,
-    pub ll16: DSlice<u16>,
-    pub ll4: DSlice<u8>,
+    pub tt: Box<[u32], BzipAllocator>,
+    pub ll16: Box<[u16], BzipAllocator>,
+    pub ll4: Box<[u8], BzipAllocator>,
     pub storedBlockCRC: u32,
     pub storedCombinedCRC: u32,
     pub calculatedBlockCRC: u32,
@@ -680,40 +647,6 @@ pub(crate) struct SaveArea {
     pub zj: bool,
     pub gMinlen: u8,
     pub gSel: u8,
-}
-
-pub(crate) struct DSlice<T> {
-    ptr: *mut T,
-    len: usize,
-}
-
-impl<T> DSlice<T> {
-    fn new() -> Self {
-        Self {
-            ptr: dangling(),
-            len: 0,
-        }
-    }
-
-    pub(crate) fn alloc(allocator: &Allocator, len: usize) -> Option<Self> {
-        let ptr = allocator.allocate_zeroed::<T>(len)?;
-        Some(Self { ptr, len })
-    }
-
-    pub(crate) unsafe fn dealloc(&mut self, allocator: &Allocator) {
-        let this = mem::replace(self, Self::new());
-        if this.len != 0 {
-            unsafe { allocator.deallocate(this.ptr, this.len) }
-        }
-    }
-
-    pub(crate) fn as_slice(&self) -> &[T] {
-        unsafe { core::slice::from_raw_parts(self.ptr, self.len) }
-    }
-
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [T] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr, self.len) }
-    }
 }
 
 const _C_INT_SIZE: () = assert!(core::mem::size_of::<core::ffi::c_int>() == 4);
@@ -794,57 +727,41 @@ pub(crate) fn BZ2_bzCompressInitHelp(
         return ReturnCode::BZ_PARAM_ERROR;
     };
 
-    let Some(s) = allocator.allocate_zeroed::<EState>(1) else {
-        return ReturnCode::BZ_MEM_ERROR;
-    };
-
-    // this `s.strm` pointer should _NEVER_ be used! it exists just as a consistency check to ensure
-    // that a given state belongs to a given strm.
-    unsafe { (*s).strm_addr = strm as *const _ as usize }; // FIXME use .addr() once stable
-
     let n = 100000 * blockSize100k;
 
     let arr1_len = n as usize;
-    let arr1 = Arr1::alloc(&allocator, arr1_len);
+    let arr1 = Arr1::new(arr1_len, allocator);
 
     let arr2_len = n as usize + BZ_N_OVERSHOOT;
-    let arr2 = Arr2::alloc(&allocator, arr2_len);
+    let arr2 = Arr2::new(arr2_len, allocator);
 
-    let ftab = Ftab::alloc(&allocator);
+    let ftab = Box::try_new_in([0; FTAB_LEN], allocator);
 
-    match (arr1, arr2, ftab) {
-        (Some(arr1), Some(arr2), Some(ftab)) => unsafe {
-            (*s).arr1 = arr1;
-            (*s).arr2 = arr2;
-            (*s).ftab = ftab;
-        },
-        (arr1, arr2, ftab) => {
-            if let Some(mut arr1) = arr1 {
-                unsafe { arr1.dealloc(&allocator) };
-            }
-
-            if let Some(mut arr2) = arr2 {
-                unsafe { arr2.dealloc(&allocator) };
-            }
-
-            if let Some(mut ftab) = ftab {
-                unsafe { ftab.dealloc(&allocator) };
-            }
-
-            unsafe { allocator.deallocate(s, 1) };
-
-            return ReturnCode::BZ_MEM_ERROR;
-        }
+    let (Ok(arr1), Ok(arr2), Ok(ftab)) = (arr1, arr2, ftab) else {
+        return ReturnCode::BZ_MEM_ERROR;
     };
 
-    strm.state = s;
+    let Ok(mut maybe_uninit_estate) = Box::<EState, _>::try_new_zeroed_in(allocator) else {
+        return ReturnCode::BZ_MEM_ERROR;
+    };
+    let s = maybe_uninit_estate.as_mut_ptr();
+
+    unsafe {
+        // The zero-initialized boxes are not valid and therefore must not be dropped
+        (&raw mut (*s).arr1).write(arr1);
+        (&raw mut (*s).arr2).write(arr2);
+        (&raw mut (*s).ftab).write(ftab);
+        // this `s.strm` pointer should _NEVER_ be used! it exists just as a consistency check to ensure
+        // that a given state belongs to a given strm.
+        (&raw mut (*s).strm_addr).write(strm as *const _ as usize); // FIXME use .addr() once stable
+    }
 
     // safety: the EState has now been sufficiently initialized; the allocator zeroes the memory,
     // and the only fields where zero is not a valid value are the arrays that were just set
     //
     // note in particular that if the discriminant of the first variant of an enum is unspecified,
     // then it is set to zero.
-    let s = unsafe { &mut *s };
+    let mut s = unsafe { maybe_uninit_estate.assume_init() };
 
     s.blockNo = 0;
     s.state = State::Output;
@@ -860,8 +777,10 @@ pub(crate) fn BZ2_bzCompressInitHelp(
     strm.total_out_lo32 = 0;
     strm.total_out_hi32 = 0;
 
-    init_rl(s);
-    prepare_new_block(s);
+    init_rl(&mut s);
+    prepare_new_block(&mut s);
+
+    strm.state = Box::into_raw_with_allocator(s).0;
 
     ReturnCode::BZ_OK
 }
@@ -1194,28 +1113,20 @@ pub unsafe extern "C" fn BZ2_bzCompressEnd(strm: *mut bz_stream) -> c_int {
 }
 
 fn BZ2_bzCompressEndHelp(strm: &mut BzStream<EState>) -> c_int {
-    let Some(s) = (unsafe { strm.state.as_mut() }) else {
+    let Some(mut s) = ptr::NonNull::new(strm.state) else {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
     };
+    let state = unsafe { s.as_mut() };
 
     // FIXME use .addr() once stable
-    if s.strm_addr != strm as *mut _ as usize {
+    if state.strm_addr != strm as *mut _ as usize {
         return ReturnCode::BZ_PARAM_ERROR as c_int;
     }
 
-    let Some(allocator) = strm.allocator() else {
-        return ReturnCode::BZ_PARAM_ERROR as c_int;
-    };
-
-    unsafe {
-        s.arr1.dealloc(&allocator);
-        s.arr2.dealloc(&allocator);
-        s.ftab.dealloc(&allocator);
-    }
-
-    unsafe {
-        allocator.deallocate(strm.state.cast::<EState>(), 1);
-    }
+    // All allocations are made on the same allocator
+    let allocator = *Box::allocator(&state.arr1.0);
+    // SAFETY: The EState was allocated with this allocator
+    drop(unsafe { Box::from_raw_in(s.as_ptr(), allocator) });
     strm.state = ptr::null_mut::<EState>();
 
     ReturnCode::BZ_OK as c_int
@@ -1277,31 +1188,37 @@ pub(crate) fn BZ2_bzDecompressInitHelp(
         return ReturnCode::BZ_PARAM_ERROR;
     };
 
-    let Some(s) = allocator.allocate_zeroed::<DState>(1) else {
+    let Ok(mut maybe_uninit_dstate) = Box::<DState, _>::try_new_zeroed_in(allocator) else {
         return ReturnCode::BZ_MEM_ERROR;
     };
+    let s = maybe_uninit_dstate.as_mut_ptr();
 
     // this `s.strm` pointer should _NEVER_ be used! it exists just as a consistency check to ensure
     // that a given state belongs to a given strm.
-    unsafe { (*s).strm_addr = strm as *const _ as usize }; // FIXME use .addr() once stable
+    unsafe { (&raw mut (*s).strm_addr).write(strm as *const _ as usize) }; // FIXME use .addr() once stable
 
     unsafe {
-        (*s).state = decompress::State::BZ_X_MAGIC_1;
-        (*s).bsLive = 0;
-        (*s).bsBuff = 0;
-        (*s).calculatedCombinedCRC = 0;
+        (&raw mut (*s).state).write(decompress::State::BZ_X_MAGIC_1);
+        (&raw mut (*s).bsLive).write(0);
+        (&raw mut (*s).bsBuff).write(0);
+        (&raw mut (*s).calculatedCombinedCRC).write(0);
     }
 
     unsafe {
-        (*s).smallDecompress = decompress_mode;
-        (*s).ll4 = DSlice::new();
-        (*s).ll16 = DSlice::new();
-        (*s).tt = DSlice::new();
-        (*s).currBlockNo = 0;
-        (*s).verbosity = verbosity;
+        (&raw mut (*s).smallDecompress).write(decompress_mode);
+        // Zeroed-out memory is not a valid representation of Box and if we simply overwrite the
+        // fields, it would attempt to drop a box that is a null pointer
+        (&raw mut (*s).ll4).write(Box::new_in([], allocator));
+        (&raw mut (*s).ll16).write(Box::new_in([], allocator));
+        (&raw mut (*s).tt).write(Box::new_in([], allocator));
+        (&raw mut (*s).currBlockNo).write(0);
+        (&raw mut (*s).verbosity).write(verbosity);
     }
 
-    strm.state = s;
+    // SAFETY: all fields of DState are now properly initialized
+    let dstate = unsafe { maybe_uninit_dstate.assume_init() };
+
+    strm.state = Box::into_raw_with_allocator(dstate).0;
 
     strm.total_in_lo32 = 0;
     strm.total_in_hi32 = 0;
@@ -1334,7 +1251,7 @@ pub(crate) use BZ_RAND_UPD_MASK;
 
 macro_rules! BZ_GET_FAST {
     ($s:expr) => {
-        match $s.tt.as_slice().get($s.tPos as usize) {
+        match $s.tt.get($s.tPos as usize) {
             None => return true,
             Some(&bits) => {
                 $s.tPos = bits;
@@ -1443,7 +1360,7 @@ fn un_rle_obuf_to_output_fast(strm: &mut BzStream<DState>, s: &mut DState) -> bo
         let avail_out_INIT: u32 = cs_avail_out;
         let s_save_nblockPP: i32 = s.save.nblock as i32 + 1;
 
-        let tt = &s.tt.as_slice()[..100000usize.wrapping_mul(usize::from(ro_blockSize100k))];
+        let tt = &s.tt[..100000usize.wrapping_mul(usize::from(ro_blockSize100k))];
 
         macro_rules! BZ_GET_FAST_C {
             ($c_tPos:expr) => {
@@ -1599,13 +1516,13 @@ pub(crate) fn index_into_f(index: u32, cftab: &[u32; 257]) -> u8 {
 
 macro_rules! GET_LL4 {
     ($s:expr, $i:expr) => {
-        $s.ll4.as_slice()[($s.tPos >> 1) as usize] as u32 >> ($i << 2 & 0x4) & 0xf
+        $s.ll4[($s.tPos >> 1) as usize] as u32 >> ($i << 2 & 0x4) & 0xf
     };
 }
 
 macro_rules! BZ_GET_SMALL {
     ($s:expr) => {
-        match $s.ll16.as_slice().get($s.tPos as usize) {
+        match $s.ll16.get($s.tPos as usize) {
             None => return true,
             Some(&low_bits) => {
                 let high_bits = GET_LL4!($s, $s.tPos);
@@ -1811,10 +1728,6 @@ pub(crate) fn BZ2_bzDecompressHelp(strm: &mut BzStream<DState>) -> ReturnCode {
         return ReturnCode::BZ_PARAM_ERROR;
     }
 
-    let Some(allocator) = strm.allocator() else {
-        return ReturnCode::BZ_PARAM_ERROR;
-    };
-
     loop {
         match s.state {
             decompress::State::BZ_X_IDLE => {
@@ -1855,7 +1768,7 @@ pub(crate) fn BZ2_bzDecompressHelp(strm: &mut BzStream<DState>) -> ReturnCode {
                     return ReturnCode::BZ_OK;
                 }
             }
-            _ => match decompress(strm, s, &allocator) {
+            _ => match decompress(strm, s) {
                 ReturnCode::BZ_STREAM_END => {
                     if s.verbosity >= 3 {
                         debug_log!(
@@ -1903,26 +1816,20 @@ pub unsafe extern "C" fn BZ2_bzDecompressEnd(strm: *mut bz_stream) -> c_int {
 }
 
 fn BZ2_bzDecompressEndHelp(strm: &mut BzStream<DState>) -> ReturnCode {
-    let Some(s) = (unsafe { strm.state.as_mut() }) else {
+    let Some(mut s) = ptr::NonNull::new(strm.state) else {
         return ReturnCode::BZ_PARAM_ERROR;
     };
+    let state = unsafe { s.as_mut() };
 
     // FIXME use .addr() once stable
-    if s.strm_addr != strm as *mut _ as usize {
+    if state.strm_addr != strm as *mut _ as usize {
         return ReturnCode::BZ_PARAM_ERROR;
     }
 
-    let Some(allocator) = strm.allocator() else {
-        return ReturnCode::BZ_PARAM_ERROR;
-    };
-
-    unsafe {
-        s.tt.dealloc(&allocator);
-        s.ll16.dealloc(&allocator);
-        s.ll4.dealloc(&allocator);
-    }
-
-    unsafe { allocator.deallocate(strm.state, 1) };
+    // We are using the same allocator for all our allocations
+    let allocator = *Box::allocator(&state.tt);
+    // SAFETY: The DState was allocated with this allocator
+    drop(unsafe { Box::from_raw_in(s.as_ptr(), allocator) });
     strm.state = ptr::null_mut::<DState>();
 
     ReturnCode::BZ_OK

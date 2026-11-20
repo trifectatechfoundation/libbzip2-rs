@@ -1,12 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use alloc::boxed::Box;
 use core::ffi::{c_char, c_int, c_uint, c_void, CStr};
+use core::ptr::NonNull;
 use core::{mem, ptr};
 
 use libc::FILE;
 use libc::{fclose, fdopen, ferror, fflush, fgetc, fopen, fread, fwrite, ungetc};
 
-use crate::allocator::Allocator;
+use crate::allocator::BzipAllocator;
 use crate::bzlib::prefix;
 use crate::bzlib::BZ_MAX_UNUSED_U32;
 use crate::bzlib::{bz_stream, BZ2_bzCompressEnd, BZ2_bzDecompressEnd};
@@ -192,18 +194,17 @@ unsafe fn BZ2_bzWriteOpenHelp(
         return ptr::null_mut();
     }
 
-    let Some(allocator) = Allocator::DEFAULT else {
+    let Some(allocator) = BzipAllocator::DEFAULT else {
         BZ_SETERR_RAW!(bzerror, bzf, ReturnCode::BZ_CONFIG_ERROR);
         return ptr::null_mut();
     };
 
-    let Some(bzf) = allocator.allocate_zeroed::<BZFILE>(1) else {
+    let Ok(bzf) = Box::<BZFILE, _>::try_new_zeroed_in(allocator) else {
         BZ_SETERR_RAW!(bzerror, bzf, ReturnCode::BZ_MEM_ERROR);
         return ptr::null_mut();
     };
-
-    // SAFETY: bzf is non-null and correctly initalized
-    let bzf = unsafe { &mut *bzf };
+    // SAFETY: bzf is non-null and correctly initialized
+    let mut bzf = unsafe { bzf.assume_init() };
 
     BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_OK);
 
@@ -229,11 +230,10 @@ unsafe fn BZ2_bzWriteOpenHelp(
             bzf.strm.avail_in = 0;
             bzf.initialisedOk = true;
 
-            bzf as *mut BZFILE
+            Box::into_raw_with_allocator(bzf).0
         }
         error => {
             BZ_SETERR!(bzerror, bzf, error);
-            allocator.deallocate(bzf, 1);
 
             ptr::null_mut()
         }
@@ -466,11 +466,15 @@ unsafe fn BZ2_bzWriteClose64Help(
     mut nbytes_out_lo32: Option<&mut c_uint>,
     mut nbytes_out_hi32: Option<&mut c_uint>,
 ) {
-    let mut b = b.as_mut();
-    let Some(bzf) = b else {
-        BZ_SETERR_RAW!(bzerror, b, ReturnCode::BZ_PARAM_ERROR);
+    let Some(mut b) = NonNull::new(b) else {
+        BZ_SETERR_RAW!(
+            bzerror,
+            Option::<&mut BZFILE>::None,
+            ReturnCode::BZ_PARAM_ERROR
+        );
         return;
     };
+    let bzf = b.as_mut();
 
     if !matches!(bzf.operation, Operation::Writing) {
         BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_SEQUENCE_ERROR);
@@ -553,12 +557,13 @@ unsafe fn BZ2_bzWriteClose64Help(
 
     BZ2_bzCompressEnd(&mut bzf.strm);
 
-    let Some(allocator) = Allocator::DEFAULT else {
+    let Some(allocator) = BzipAllocator::DEFAULT else {
         BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_CONFIG_ERROR);
         return;
     };
 
-    allocator.deallocate(bzf, 1);
+    // SAFETY: BZFILE was allocated with this allocator and is non-null
+    let _ = unsafe { Box::from_raw_in(bzf, allocator) };
 }
 
 /// Prepare to read compressed data from a file handle.
@@ -643,18 +648,17 @@ unsafe fn BZ2_bzReadOpenHelp(
         return ptr::null_mut::<BZFILE>();
     }
 
-    let Some(allocator) = Allocator::DEFAULT else {
+    let Some(allocator) = BzipAllocator::DEFAULT else {
         BZ_SETERR_RAW!(bzerror, bzf, ReturnCode::BZ_CONFIG_ERROR);
         return ptr::null_mut();
     };
 
-    let Some(bzf) = allocator.allocate_zeroed::<BZFILE>(1) else {
+    let Ok(bzf) = Box::<BZFILE, _>::try_new_zeroed_in(allocator) else {
         BZ_SETERR_RAW!(bzerror, bzf, ReturnCode::BZ_MEM_ERROR);
         return ptr::null_mut();
     };
-
-    // SAFETY: bzf is non-null and correctly initalized
-    let bzf = unsafe { &mut *bzf };
+    // SAFETY: bzf is non-null and correctly initialized
+    let mut bzf = unsafe { bzf.assume_init() };
 
     BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_OK);
 
@@ -680,17 +684,15 @@ unsafe fn BZ2_bzReadOpenHelp(
             bzf.strm.avail_in = bzf.bufN as c_uint;
             bzf.strm.next_in = bzf.buf.as_mut_ptr().cast::<c_char>();
             bzf.initialisedOk = true;
+
+            Box::into_raw_with_allocator(bzf).0
         }
         ret => {
             BZ_SETERR!(bzerror, bzf, ret);
 
-            allocator.deallocate(bzf, 1);
-
-            return ptr::null_mut();
+            ptr::null_mut()
         }
     }
-
-    bzf as *mut BZFILE
 }
 
 /// Releases all memory associated with a [`BZFILE`] opened with [`BZ2_bzReadOpen`].
@@ -720,14 +722,14 @@ unsafe fn BZ2_bzReadOpenHelp(
 #[export_name = prefix!(BZ2_bzReadClose)]
 pub unsafe extern "C" fn BZ2_bzReadClose(bzerror: *mut c_int, b: *mut BZFILE) {
     let mut bzerror = bzerror.as_mut();
-    let mut b = b.as_mut();
 
-    BZ_SETERR_RAW!(bzerror, b, ReturnCode::BZ_OK);
+    BZ_SETERR_RAW!(bzerror, b.as_mut(), ReturnCode::BZ_OK);
 
-    let Some(bzf) = b else {
-        BZ_SETERR_RAW!(bzerror, b, ReturnCode::BZ_OK);
+    let Some(mut b) = NonNull::new(b) else {
+        BZ_SETERR_RAW!(bzerror, Option::<&mut BZFILE>::None, ReturnCode::BZ_OK);
         return;
     };
+    let bzf = b.as_mut();
 
     if !matches!(bzf.operation, Operation::Reading) {
         BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_SEQUENCE_ERROR);
@@ -738,12 +740,13 @@ pub unsafe extern "C" fn BZ2_bzReadClose(bzerror: *mut c_int, b: *mut BZFILE) {
         BZ2_bzDecompressEnd(&mut bzf.strm);
     }
 
-    let Some(allocator) = Allocator::DEFAULT else {
+    let Some(allocator) = BzipAllocator::DEFAULT else {
         BZ_SETERR!(bzerror, bzf, ReturnCode::BZ_CONFIG_ERROR);
         return;
     };
 
-    allocator.deallocate(bzf, 1)
+    // SAFETY: BZFILE was allocated with this allocator and is non-null
+    let _ = unsafe { Box::from_raw_in(bzf, allocator) };
 }
 
 /// Reads up to `len` (uncompressed) bytes from the compressed file `b` into the buffer `buf`.
@@ -1383,12 +1386,13 @@ mod tests {
 
     #[test]
     fn bzclose_write() {
-        let Some(allocator) = Allocator::DEFAULT else {
+        let Some(allocator) = BzipAllocator::DEFAULT else {
             return;
         };
 
         {
-            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzf = Box::<BZFILE, _>::new_zeroed_in(allocator);
+            let bzf_ptr = bzf.as_mut_ptr();
             let mut bzerr: c_int = 0;
 
             unsafe {
@@ -1408,7 +1412,8 @@ mod tests {
         }
 
         {
-            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzf = Box::<BZFILE, _>::new_zeroed_in(allocator);
+            let bzf_ptr = bzf.as_mut_ptr();
 
             unsafe {
                 (*bzf_ptr).operation = Operation::Writing;
@@ -1421,12 +1426,13 @@ mod tests {
 
     #[test]
     fn bzclose_read() {
-        let Some(allocator) = Allocator::DEFAULT else {
+        let Some(allocator) = BzipAllocator::DEFAULT else {
             return;
         };
 
         {
-            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzf = Box::<BZFILE, _>::new_zeroed_in(allocator);
+            let bzf_ptr = bzf.as_mut_ptr();
             let mut bzerr: c_int = 0;
 
             unsafe {
@@ -1437,7 +1443,8 @@ mod tests {
         }
 
         {
-            let bzf_ptr: *mut BZFILE = allocator.allocate_zeroed(1).unwrap();
+            let mut bzf = Box::<BZFILE, _>::new_zeroed_in(allocator);
+            let bzf_ptr = bzf.as_mut_ptr();
 
             unsafe {
                 (*bzf_ptr).operation = Operation::Reading;
